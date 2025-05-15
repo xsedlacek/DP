@@ -1,0 +1,4250 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JetBot WebSocket Dashboard - Optimalizovaný</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            background-color: white;
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card-header {
+            background-color: #4a6ed0;
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+            font-weight: bold;
+        }
+        .camera-container {
+            width: 100%;
+            text-align: center;
+            position: relative;
+        }
+        .camera-feed {
+            width: 100%;
+            border-radius: 10px;
+            max-height: 480px;
+            object-fit: contain;
+        }
+        .sensor-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        .control-panel {
+            background-color: #f0f4ff;
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .joystick-container {
+            width: 220px;
+            height: 220px;
+            margin: 0 auto;
+            position: relative;
+            background-color: #e0e0e0;
+            border-radius: 50%;
+            touch-action: none;
+        }
+        .joystick-knob {
+            width: 80px;
+            height: 80px;
+            background-color: #4a6ed0;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            user-select: none;
+        }
+        .lidar-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin: 0 auto;
+            background-color: #f8f9fa;
+            border-radius: 50%;
+            border: 1px solid #e0e0e0;
+        }
+        .lidar-point {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+        }
+        .lidar-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 12px;
+            height: 12px;
+            background-color: #4a6ed0;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+        }
+        .lidar-radius {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+        }
+        .lidar-circle {
+            position: absolute;
+            border: 1px dashed #aaa;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .lidar-label {
+            position: absolute;
+            font-size: 10px;
+            color: #666;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 1px 3px;
+            border-radius: 2px;
+            pointer-events: none;
+        }
+        .lidar-tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 100;
+            pointer-events: none;
+            display: none;
+        }
+        .speed-gauge {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            margin-top: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        .speed-value {
+            height: 100%;
+            background-color: #4a6ed0;
+            border-radius: 10px;
+            position: absolute;
+            top: 0;
+            width: 50%;
+            left: 50%;
+            transition: width 0.3s, left 0.3s;
+        }
+        .connection-status {
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        .status-connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .footer {
+            margin-top: 20px;
+            padding: 10px 0;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        .nav-tabs .nav-link {
+            font-weight: bold;
+            color: #495057;
+        }
+        .nav-tabs .nav-link.active {
+            color: #4a6ed0;
+            border-color: #dee2e6 #dee2e6 #fff;
+        }
+        @media (max-width: 768px) {
+            .camera-feed {
+                max-height: 300px;
+            }
+            .joystick-container {
+                width: 180px;
+                height: 180px;
+            }
+            .joystick-knob {
+                width: 60px;
+                height: 60px;
+            }
+            .lidar-container {
+                width: 250px;
+                height: 250px;
+            }
+        }
+        .websocket-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .websocket-connected {
+            background-color: #28a745;
+            box-shadow: 0 0 5px #28a745;
+        }
+        .websocket-disconnected {
+            background-color: #dc3545;
+            box-shadow: 0 0 5px #dc3545;
+        }
+        #performance-monitor {
+            position: fixed;
+            top: 0;
+            right: 0;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            font-size: 12px;
+            z-index: 9999;
+            border-radius: 0 0 0 5px;
+        }
+        .keyboard-controls {
+        background-color: #f0f4ff;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        }
+        .keyboard-arrow {
+            width: 50px;
+            height: 50px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5em;
+            color: #333;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        .keyboard-arrow.active {
+            background-color: #4a6ed0;
+            color: white;
+            transform: translateY(4px);
+            box-shadow: 0 0 2px rgba(0,0,0,0.1);
+        }
+        .keyboard-space {
+            width: auto;
+            padding: 0 15px;
+            height: 40px;
+            font-size: 1em;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .chart-controls {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+        .data-option {
+            margin-right: 15px;
+        }
+        .btn-recording {
+            background-color: #dc3545;
+            color: white;
+        }
+        .btn-recording:hover {
+            background-color: #c82333;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+<div id="performance-monitor">FPS: 0 | WS: 0/s | CPU: 0%</div>
+
+<div class="container-fluid py-3">
+    <div class="row mb-3">
+        <div class="col">
+            <h1 class="text-center">
+                <i class="fas fa-robot me-2"></i>JetBot Dashboard
+            </h1>
+            <div id="connection-status" class="text-center">
+                <div class="connection-status status-disconnected">
+                    <span class="websocket-indicator websocket-disconnected"></span>
+                    <i class="fas fa-plug me-2"></i>Pripájanie...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" id="dashboardTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="control-tab" data-bs-toggle="tab" data-bs-target="#control-panel" type="button" role="tab" aria-controls="control-panel" aria-selected="true">
+                <i class="fas fa-gamepad me-2"></i>Kamera a Ovládanie
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="sensors-tab" data-bs-toggle="tab" data-bs-target="#sensors-panel" type="button" role="tab" aria-controls="sensors-panel" aria-selected="false">
+                <i class="fas fa-microchip me-2"></i>Senzorové Dáta
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="map-tab" data-bs-toggle="tab" data-bs-target="#map-panel" type="button" role="tab" aria-controls="map-panel" aria-selected="false">
+                <i class="fas fa-map me-2"></i>SLAM Mapa
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="patterns-tab" data-bs-toggle="tab" data-bs-target="#patterns-panel" type="button" role="tab" aria-controls="patterns-panel" aria-selected="false">
+                    <i class="fas fa-route me-2"></i>Dráhy Pohybu
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="charts-tab" data-bs-toggle="tab" data-bs-target="#charts-panel" type="button" role="tab" aria-controls="charts-panel" aria-selected="false">
+                <i class="fas fa-chart-line me-2"></i>Časové Priebehy
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="dashboardTabsContent">
+        <div class="tab-pane fade show active" id="control-panel" role="tabpanel" aria-labelledby="control-tab">
+            <div class="row">
+                <div class="col-lg-7">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-video me-2"></i>Kamera
+                        </div>
+                        <div class="card-body">
+                            <div class="camera-container">
+                                <img id="camera-feed" class="camera-feed" src="/video_feed" alt="Kamera">
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col text-end">
+                                    <button id="camera-refresh" class="btn btn-outline-primary">
+                                        <i class="fas fa-sync-alt"></i> Obnoviť kameru
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-tachometer-alt me-2"></i>Rýchlosti
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6><i class="fas fa-tachometer-alt me-2"></i>Lineárna</h6>
+                                            <div class="sensor-value" id="linear-velocity-value">0.00 m/s</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6><i class="fas fa-sync me-2"></i>Uhlová</h6>
+                                            <div class="sensor-value" id="angular-velocity-value">0.00 rad/s</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-gamepad me-2"></i>Ovládací panel
+                        </div>
+                        <div class="card-body">
+                            <div class="control-panel">
+                                <h5 class="text-center mb-3">Joystick</h5>
+                                <div id="joystick" class="joystick-container">
+                                    <div id="knob" class="joystick-knob"></div>
+                                </div>
+                                <div class="mt-3">
+                                    <div class="row">
+                                        <div class="col">
+                                            <p class="text-center mb-1">Vpred/Vzad: <span id="linear-x-value">0.00</span></p>
+                                            <div class="speed-gauge">
+                                                <div id="linear-x-gauge" class="speed-value"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="row mt-2">
+                                        <div class="col">
+                                            <p class="text-center mb-1">Otáčanie: <span id="angular-z-value">0.00</span></p>
+                                            <div class="speed-gauge">
+                                                <div id="angular-z-gauge" class="speed-value"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mt-3">
+                                <div class="col-6">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6><i class="fas fa-cog me-2"></i>Ľavý motor</h6>
+                                            <div class="sensor-value" id="left-motor-value">0.00</div>
+                                            <div class="progress mt-2">
+                                                <div id="left-motor-gauge" class="progress-bar" role="progressbar" style="width: 50%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6><i class="fas fa-cog me-2"></i>Pravý motor</h6>
+                                            <div class="sensor-value" id="right-motor-value">0.00</div>
+                                            <div class="progress mt-2">
+                                                <div id="right-motor-gauge" class="progress-bar" role="progressbar" style="width: 50%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <i class="fas fa-info-circle me-2"></i>Tipy na ovládanie
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <h5><i class="fas fa-keyboard me-2"></i>Ovládanie klávesnicou</h5>
+                                <ul>
+                                    <li><strong>Šípky</strong> - ovládanie pohybu vpred/vzad/doľava/doprava</li>
+                                    <li><strong>Medzerník</strong> - okamžité zastavenie robota</li>
+                                    <li><strong>Shift + šípky</strong> - funguje aj keď nie ste na karte s ovládaním</li>
+                                </ul>
+                                <p class="mb-0 mt-2"><i class="fas fa-exclamation-triangle me-2"></i> Pri strate fokusu okna sa robot automaticky zastaví.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <div class="keyboard-controls">
+                            <div class="row mb-2">
+                                <div class="col text-center">
+                                    <h5><i class="fas fa-keyboard me-2"></i>Ovládanie klávesnicou</h5>
+                                    <p class="text-muted">Pre ovládanie robota môžete použiť aj šípky na klávesnici</p>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-center mb-3">
+                                <div class="keyboard-arrow" id="arrow-up">
+                                    <i class="fas fa-arrow-up"></i>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-center mb-3">
+                                <div class="keyboard-arrow me-3" id="arrow-left">
+                                    <i class="fas fa-arrow-left"></i>
+                                </div>
+                                <div class="keyboard-arrow me-3" id="arrow-down">
+                                    <i class="fas fa-arrow-down"></i>
+                                </div>
+                                <div class="keyboard-arrow" id="arrow-right">
+                                    <i class="fas fa-arrow-right"></i>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-center">
+                                <div class="keyboard-arrow keyboard-space" id="key-space">
+                                    <i class="fas fa-stop"></i> Zastaviť (medzerník)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="sensors-panel" role="tabpanel" aria-labelledby="sensors-tab">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-microchip me-2"></i>IMU senzor
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-2">
+                                <div class="col-12">
+                                    <h6>Akcelerometer (m/s²):</h6>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">X: <span id="accel-x" class="sensor-value">0.00</span></p>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">Y: <span id="accel-y" class="sensor-value">0.00</span></p>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">Z: <span id="accel-z" class="sensor-value">0.00</span></p>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-12">
+                                    <h6>Gyroskop (rad/s):</h6>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">X: <span id="gyro-x" class="sensor-value">0.00</span></p>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">Y: <span id="gyro-y" class="sensor-value">0.00</span></p>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">Z: <span id="gyro-z" class="sensor-value">0.00</span></p>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <h6>Orientácia (°):</h6>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">Roll: <span id="roll-value" class="sensor-value">0.00</span></p>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">Pitch: <span id="pitch-value" class="sensor-value">0.00</span></p>
+                                </div>
+                                <div class="col-4">
+                                    <p class="mb-1">Yaw: <span id="yaw-value" class="sensor-value">0.00</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="3d-model-container" class="card">
+                        <div class="card-header">
+                            <i class="fas fa-cube me-2"></i>3D Vizualizácia
+                        </div>
+                        <div class="card-body">
+                            <div id="3d-model" style="width: 100%; height: 300px; border-radius: 10px; overflow: hidden;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-radar me-2"></i>LIDAR skener
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <p class="mb-1">Min: <span id="min-distance" class="sensor-value">0.00</span> m</p>
+                                </div>
+                                <div class="col-6">
+                                    <p class="mb-1">Max: <span id="max-distance" class="sensor-value">0.00</span> m</p>
+                                </div>
+                            </div>
+                            <div class="lidar-container" id="lidar-visualization">
+                                <div class="lidar-radius"></div>
+                                <div class="lidar-center"></div>
+                                <div class="lidar-circle" style="width: 25%; height: 25%; top: 50%; left: 50%;"></div>
+                                <div class="lidar-circle" style="width: 50%; height: 50%; top: 50%; left: 50%;"></div>
+                                <div class="lidar-circle" style="width: 75%; height: 75%; top: 50%; left: 50%;"></div>
+                                <div class="lidar-label" style="top: 50%; left: calc(50% + 12.5%); transform: translate(-50%, -50%);">1.25m</div>
+                                <div class="lidar-label" style="top: 50%; left: calc(50% + 25%); transform: translate(-50%, -50%);">2.5m</div>
+                                <div class="lidar-label" style="top: 50%; left: calc(50% + 37.5%); transform: translate(-50%, -50%);">3.75m</div>
+                                <div class="lidar-label" style="top: 50%; left: calc(50% + 50%); transform: translate(-50%, -50%);">5m</div>
+                                <div class="lidar-label" style="top: 10px; left: 50%; transform: translateX(-50%);">0°</div>
+                                <div class="lidar-label" style="top: 50%; right: 10px; transform: translateY(-50%);">90°</div>
+                                <div class="lidar-label" style="bottom: 10px; left: 50%; transform: translateX(-50%);">180°</div>
+                                <div class="lidar-label" style="top: 50%; left: 10px; transform: translateY(-50%);">270°</div>
+                                <div class="lidar-tooltip" id="lidar-tooltip"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-stethoscope me-2"></i>Diagnostika
+                        </div>
+                        <div class="card-body">
+                            <p>Server IP: <span id="server-ip" class="fw-bold">...</span></p>
+                            <p>ROS pripojenie: <span id="ros-status" class="fw-bold">...</span></p>
+                            <p>Zdroj kamery: <span id="camera-source" class="fw-bold">...</span></p>
+                            <p>WebSocket: <span id="websocket-status" class="fw-bold">...</span></p>
+                            <p>Posledná aktualizácia: <span id="last-update" class="fw-bold">...</span></p>
+                            <div class="d-grid gap-2">
+                                <button id="refresh-connection" class="btn btn-primary">
+                                    <i class="fas fa-sync-alt me-2"></i>Obnoviť pripojenie
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="map-panel" role="tabpanel" aria-labelledby="map-tab">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-map me-2"></i>SLAM Mapa
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between mb-3">
+                                <button id="reset-map" class="btn btn-warning">
+                                    <i class="fas fa-trash me-2"></i>Resetovať mapu
+                                </button>
+                                <button id="save-map" class="btn btn-success">
+                                    <i class="fas fa-save me-2"></i>Uložiť mapu
+                                </button>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="auto-update-map" checked>
+                                    <label class="form-check-label" for="auto-update-map">Automatická aktualizácia mapy</label>
+                                </div>
+                            </div>
+                            <div class="slam-map-container" style="height: 500px; position: relative; overflow: hidden; background-color: #f0f0f0; border-radius: 10px;">
+                                <canvas id="slam-map" style="position: absolute; top: 0; left: 0;"></canvas>
+                                <div id="robot-position" style="position: absolute; width: 20px; height: 20px; background-color: red; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="patterns-panel" role="tabpanel" aria-labelledby="patterns-tab">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-route me-2"></i>Vzor Pohybu Robota
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Vyberte vzor pohybu a robot sa bude pohybovať podľa zvoleného vzoru. Vzor sa bude opakovať, kým ho nezastavíte.
+                            </div>
+                            
+                            <div class="row mb-4">
+                                <div class="col text-center">
+                                    <h5 class="mb-3">Vyber vzor:</h5>
+                                    <div class="btn-group" role="group" aria-label="Vzory pohybu">
+                                        <input type="radio" class="btn-check" name="pattern" id="pattern-circle" autocomplete="off" value="circle">
+                                        <label class="btn btn-outline-primary" for="pattern-circle">
+                                            <i class="fas fa-circle me-2"></i>Kruh
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="pattern" id="pattern-square" autocomplete="off" value="square">
+                                        <label class="btn btn-outline-primary" for="pattern-square">
+                                            <i class="fas fa-square me-2"></i>Štvorec
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="pattern" id="pattern-straight" autocomplete="off" value="straight">
+                                        <label class="btn btn-outline-primary" for="pattern-straight">
+                                            <i class="fas fa-arrows-alt-h me-2"></i>Rovná čiara
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="pattern-speed">Rýchlosť:</label>
+                                        <input type="range" class="form-range" id="pattern-speed" min="0.1" max="1" step="0.1" value="0.3">
+                                        <div class="d-flex justify-content-between">
+                                            <span>Pomalá</span>
+                                            <span id="speed-value">0.3</span>
+                                            <span>Rýchla</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="pattern-size">Veľkosť dráhy:</label>
+                                        <input type="range" class="form-range" id="pattern-size" min="0.5" max="2" step="0.1" value="1">
+                                        <div class="d-flex justify-content-between">
+                                            <span>Malá</span>
+                                            <span id="size-value">1.0</span>
+                                            <span>Veľká</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="straight-line-controls" class="row mb-3" style="display: none;">
+                                    <div class="col-md-12">
+                                        <div class="form-group">
+                                            <label for="pattern-distance">Vzdialenosť (m):</label>
+                                            <input type="range" class="form-range" id="pattern-distance" min="-2" max="2" step="0.1" value="1">
+                                            <div class="d-flex justify-content-between">
+                                                <span>Vzad</span>
+                                                <span id="distance-value">1.0</span>
+                                                <span>Vpred</span>
+                                            </div>
+                                            <small class="text-muted">Kladná hodnota pre pohyb vpred, záporná pre vzad</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button id="start-pattern" class="btn btn-success btn-lg mb-2" disabled>
+                                    <i class="fas fa-play me-2"></i>Spustiť Pohyb
+                                </button>
+                                <button id="stop-pattern" class="btn btn-danger btn-lg" disabled>
+                                    <i class="fas fa-stop me-2"></i>Zastaviť Pohyb
+                                </button>
+                                <button id="pause-pattern" class="btn btn-warning btn-lg" disabled>
+                                    <i class="fas fa-pause me-2"></i>Pozastaviť Pohyb
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-info-circle me-2"></i>Informácie o Trase
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-4">
+                                <div id="pattern-icon" class="display-1 text-primary">
+                                    <i class="fas fa-robot"></i>
+                                </div>
+                            </div>
+                            
+                            <div id="pattern-info">
+                                <p><strong>Aktuálny pohyb:</strong> <span id="current-pattern">Žiadny</span></p>
+                                <p><strong>Rýchlosť:</strong> <span id="current-speed">0.0</span> m/s</p>
+                                <p><strong>Veľkosť:</strong> <span id="current-size">0.0</span> m</p>
+                                <p><strong>Stav:</strong> <span id="pattern-status" class="badge bg-secondary">Neprebieha</span></p>
+                                <p><strong>Vzdialenosť:</strong> <span id="current-distance" style="display: none;">0.0</span> m</p>
+                            </div>
+                            
+                            <div class="alert alert-warning mt-3">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <small>Pozor: Vždy sa uistite, že máte dostatok priestoru pre bezpečný pohyb robota po zvolenej trase.</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tab-pane fade" id="charts-panel" role="tabpanel" aria-labelledby="charts-tab">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-line me-2"></i>Časové Priebehy Dát
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-controls">
+                                <div class="row mb-3">
+                                    <div class="col">
+                                        <h5>Ovládanie záznamu dát</h5>
+                                        <div class="btn-group mt-2">
+                                            <button id="start-recording" class="btn btn-success">
+                                                <i class="fas fa-play me-2"></i>Spustiť záznam
+                                            </button>
+                                            <button id="pause-recording" class="btn btn-warning" disabled>
+                                                <i class="fas fa-pause me-2"></i>Pozastaviť
+                                            </button>
+                                            <button id="stop-recording" class="btn btn-danger" disabled>
+                                                <i class="fas fa-stop me-2"></i>Zastaviť
+                                            </button>
+                                            <button id="clear-data" class="btn btn-secondary">
+                                                <i class="fas fa-trash me-2"></i>Vyčistiť grafy
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <div class="mt-2">
+                                            <span id="recording-status" class="badge bg-secondary me-2">Neaktívny</span>
+                                            <span id="recording-time">00:00:00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col">
+                                        <div class="form-check form-check-inline data-option">
+                                            <input class="form-check-input" type="checkbox" id="record-velocity" checked>
+                                            <label class="form-check-label" for="record-velocity">Rýchlosti</label>
+                                        </div>
+                                        <div class="form-check form-check-inline data-option">
+                                            <input class="form-check-input" type="checkbox" id="record-acceleration" checked>
+                                            <label class="form-check-label" for="record-acceleration">Akcelerácia</label>
+                                        </div>
+                                        <div class="form-check form-check-inline data-option">
+                                            <input class="form-check-input" type="checkbox" id="record-gyro" checked>
+                                            <label class="form-check-label" for="record-gyro">Gyroskop</label>
+                                        </div>
+                                        <div class="form-check form-check-inline data-option">
+                                            <input class="form-check-input" type="checkbox" id="record-motors" checked>
+                                            <label class="form-check-label" for="record-motors">Motory</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <div class="form-group">
+                                            <label for="chart-duration" class="form-label">Zobrazený čas: <span id="duration-value">60</span>s</label>
+                                            <input type="range" class="form-range" id="chart-duration" min="10" max="300" step="10" value="60">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col text-end">
+                                    <button id="export-data" class="btn btn-primary">
+                                        <i class="fas fa-file-export me-2"></i>Exportovať dáta (CSV)
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Grafy pre rôzne senzory -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <i class="fas fa-tachometer-alt me-2"></i>Rýchlosti
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="velocity-chart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <i class="fas fa-microchip me-2"></i>Akcelerácia (IMU)
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="acceleration-chart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <i class="fas fa-sync me-2"></i>Gyroskop (IMU)
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="gyro-chart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <i class="fas fa-cog me-2"></i>Motory
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="chart-container">
+                                                <canvas id="motors-chart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>   
+    <div class="footer">
+        <p>Peter Sedláček - &copy; 2025</p>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1/dist/chartjs-adapter-moment.min.js"></script>
+<script>
+/**
+ * JetBot WebSocket Dashboard - Optimalizovaná verze
+ * 
+ * Tato verze obsahuje následující optimalizace:
+ * - Throttling pro WebSocket komunikaci
+ * - Optimalizace vykreslování LIDAR vizualizace
+ * - Efektivnější 3D vizualizace
+ * - Oprava problému s nekonečným nárůstem yaw hodnoty
+ * - Pool DOM elementů pro LIDAR body
+ * - Optimalizace vykreslování mapy
+ * - Monitorování výkonu
+ */
+
+// =================== UTILITY FUNKCE ===================
+
+// Throttling funkce pro omezení frekvence volání funkcí
+function throttle(callback, delay) {
+    let lastCall = 0;
+    return function(...args) {
+        const now = Date.now();
+        if (now - lastCall >= delay) {
+            lastCall = now;
+            return callback.apply(this, args);
+        }
+    };
+}
+
+// Debounce funkce pro zpoždění volání funkcí
+function debounce(callback, delay) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => callback.apply(this, args), delay);
+    };
+}
+
+// RAF (RequestAnimationFrame) Throttle pro plynulé animace
+function rafThrottle(callback) {
+    let requestId = null;
+    let lastArgs = null;
+    
+    return function(...args) {
+        lastArgs = args;
+        if (requestId === null) {
+            requestId = requestAnimationFrame(() => {
+                callback.apply(this, lastArgs);
+                requestId = null;
+            });
+        }
+    };
+}
+
+// =================== GLOBÁLNÍ PROMĚNNÉ ===================
+
+// Inicializace WebSocket
+let socket;
+let isConnected = false;
+let reconnectInterval = null;
+let lastUpdateTime = new Date();
+
+// Joystick proměnné
+let linearX = 0;
+let angularZ = 0;
+let isDragging = false;
+
+// Graf orientace
+let orientationChart = null;
+
+// Vzor pohybu proměnné
+let patternActive = false;
+let currentPattern = null;
+let patternSpeed = 0.3;
+let patternSize = 1.0;
+
+// Mapa proměnné
+let mapCanvas = null;
+let mapContext = null;
+let mapData = null;
+let mapScale = 1;
+let mapOffsetX = 0;
+let mapOffsetY = 0;
+let isDraggingMap = false;
+let lastMapX = 0;
+let lastMapY = 0;
+let mapRenderPending = false;
+let mapTabActive = false
+// 3D model proměnné
+let scene, camera, renderer, jetbotModel, animationFrameId;
+
+// Performance monitoring
+let frameCount = 0;
+let wsMessageCount = 0;
+let lastPerformanceUpdate = performance.now();
+let fps = 0;
+let wsRate = 0;
+let cpuUsage = 0;
+let chartsTabActive = false;
+    
+// Cache pro minimalizaci DOM přístupů
+const domCache = new Map();
+
+// Funkce pro přístup k DOM elementům s cachováním
+function getElement(id) {
+    if (!domCache.has(id)) {
+        const element = document.getElementById(id);
+        if (element) {
+            domCache.set(id, element);
+        }
+        return element;
+    }
+    return domCache.get(id);
+}
+
+// =================== INICIALIZACE WEBSOCKET ===================
+
+// Funkce pro inicializaci WebSocket spojení
+function initWebSocket() {
+    if (socket) {
+        socket.close();
+        socket = null;
+    }
+    
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const url = `${protocol}//${host}`;
+    
+    console.log(`Připojování k WebSocket serveru: ${url}`);
+    socket = io(url, {
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 5000,
+        transports: ['websocket']
+    });
+    
+    socket.on('connect', function() {
+        console.log('WebSocket připojen!');
+        isConnected = true;
+        updateWebSocketStatus(true);
+        
+        if (reconnectInterval) {
+            clearInterval(reconnectInterval);
+            reconnectInterval = null;
+        }
+        
+        socket.emit('get_server_info');
+    });
+    
+    socket.on('disconnect', function() {
+        console.log('WebSocket odpojen!');
+        isConnected = false;
+        updateWebSocketStatus(false);
+        
+        if (!reconnectInterval) {
+            reconnectInterval = setInterval(() => {
+                if (!isConnected) {
+                    console.log('Pokus o opětovné připojení...');
+                    socket.connect();
+                }
+            }, 5000);
+        }
+    });
+    
+    socket.on('connect_error', function(error) {
+        console.error('Chyba WebSocket připojení:', error);
+        isConnected = false;
+        updateWebSocketStatus(false);
+    });
+    
+    setupSocketListeners();
+}
+
+// Funkce pro aktualizaci statusu WebSocket připojení v UI
+function updateWebSocketStatus(connected) {
+    const statusElement = getElement('connection-status').querySelector('.connection-status');
+    
+    if (connected) {
+        statusElement.className = 'connection-status status-connected';
+        statusElement.innerHTML = '<span class="websocket-indicator websocket-connected"></span><i class="fas fa-plug me-2"></i>Připojené';
+        getElement('websocket-status').textContent = 'Aktivní';
+    } else {
+        statusElement.className = 'connection-status status-disconnected';
+        statusElement.innerHTML = '<span class="websocket-indicator websocket-disconnected"></span><i class="fas fa-plug me-2"></i>Odpojené';
+        getElement('websocket-status').textContent = 'Neaktivní';
+    }
+    
+    getElement('last-update').textContent = new Date().toLocaleTimeString();
+}
+
+// =================== ZPRACOVÁNÍ SENZOROVÝCH DAT ===================
+
+// Výpočet úhlů z akcelerometru
+function calculateAnglesFromAccelerometer(accelX, accelY, accelZ) {
+    const roll = Math.atan2(accelY, accelZ) * (180 / Math.PI);
+    const pitch = Math.atan2(-accelX, Math.sqrt(accelY * accelY + accelZ * accelZ)) * (180 / Math.PI);
+    
+    return { roll, pitch };
+}
+
+// Výpočet úhlu yaw z quaternionu
+function calculateYawFromQuaternion(x, y, z, w) {
+    // Převod quaternionu na Eulerovy úhly (konkrétně yaw)
+    // atan2(2*(w*z + x*y), 1 - 2*(y*y + z*z))
+    return Math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)) * (180 / Math.PI);
+}
+
+// =================== WEBSOCKET LISTENERS ===================
+
+// Nastavení posluchačů na příchozí zprávy ze servera
+function setupSocketListeners() {
+    // Server info
+    socket.on('server_info', function(data) {
+        wsMessageCount++;
+        getElement('server-ip').textContent = data.server_ip;
+        getElement('ros-status').textContent = data.ros_connected ? 'Připojené' : 'Odpojené';
+        getElement('camera-source').textContent = data.camera_source;
+        getElement('last-update').textContent = new Date().toLocaleTimeString();
+    });
+    
+    // IMU data - optimalizovaná verze s fixem pro yaw
+    socket.on('imu_data', function(data) {
+    wsMessageCount++;
+    // Aktualizace hodnot akcelerometru a gyroskopu
+    getElement('accel-x').textContent = data.accel.x.toFixed(2);
+    getElement('accel-y').textContent = data.accel.y.toFixed(2);
+    getElement('accel-z').textContent = data.accel.z.toFixed(2);
+    
+    getElement('gyro-x').textContent = data.gyro.x.toFixed(2);
+    getElement('gyro-y').textContent = data.gyro.y.toFixed(2);
+    getElement('gyro-z').textContent = data.gyro.z.toFixed(2);
+    
+    // Výpočet úhlů orientace
+    const { roll, pitch } = calculateAnglesFromAccelerometer(
+        data.accel.x,
+        data.accel.y,
+        data.accel.z
+    );
+    
+    // Uložení hodnot pro pozdější použití s yaw z odometrie
+    currentRoll = roll;
+    currentPitch = pitch;
+    
+    // Aktualizace zobrazení úhlů roll a pitch
+    getElement('roll-value').textContent = roll.toFixed(1);
+    getElement('pitch-value').textContent = pitch.toFixed(1);
+    
+    // POZOR: NEAKTUALIZUJEME CELÝ 3D MODEL ZDE
+    // yaw bude přidán z odometrie
+    
+    // Pokud není k dispozici odometrie, můžeme použít záložní yaw z IMU:
+    if (!sensor_data.odom || sensor_data.odom.last_update === 0) {
+        const yaw = calculateYawFromQuaternion(
+            data.orientation.x,
+            data.orientation.y,
+            data.orientation.z,
+            data.orientation.w
+        );
+        getElement('yaw-value').textContent = yaw.toFixed(1);
+        update3DModelThrottled(roll, pitch, yaw);
+    }    
+        updateIMUChartData(data);
+});
+    
+    // Data o pohybu
+   socket.on('odom_data', function(data) {
+    wsMessageCount++;
+    
+    // Aktualizace hodnot rychlosti
+    getElement('linear-velocity-value').textContent = 
+        data.linear_velocity.x.toFixed(2) + ' m/s';
+    getElement('angular-velocity-value').textContent = 
+        data.angular_velocity.z.toFixed(2) + ' rad/s';
+    
+    // Uložení dat odometrie
+    sensor_data.odom = data;
+    
+    // Výpočet yaw z quaternionu odometrie
+    const yaw = calculateYawFromQuaternion(
+        data.orientation.x,
+        data.orientation.y,
+        data.orientation.z,
+        data.orientation.w
+    );
+    
+    // Aktualizace 3D modelu s yaw z odometrie
+    // POZOR: Tady potřebujete zachovat roll a pitch z IMU
+    if (currentRoll !== undefined && currentPitch !== undefined) {
+        update3DModelThrottled(currentRoll, currentPitch, yaw);
+    }
+    
+    // Aktualizace pozice robota na mapě pouze pokud je záložka mapy aktivní
+    if (getElement('map-panel').classList.contains('active') && mapData) {
+        updateRobotPosition(data.position.x, data.position.y);
+    }
+    updateVelocityChartData(data);
+});
+    
+    // Data o motorech
+    socket.on('motors_data', function(data) {
+        wsMessageCount++;
+        getElement('left-motor-value').textContent = data.left_velocity.toFixed(2);
+        getElement('right-motor-value').textContent = data.right_velocity.toFixed(2);
+        
+        const leftGauge = getElement('left-motor-gauge');
+        const rightGauge = getElement('right-motor-gauge');
+        
+        leftGauge.style.width = Math.min(100, Math.abs(data.left_velocity * 100)) + '%';
+        rightGauge.style.width = Math.min(100, Math.abs(data.right_velocity * 100)) + '%';
+        
+        leftGauge.style.backgroundColor = data.left_velocity >= 0 ? '#4a6ed0' : '#d9534f';
+        rightGauge.style.backgroundColor = data.right_velocity >= 0 ? '#4a6ed0' : '#d9534f';
+             
+            updateMotorsChartData(data);
+    });
+    
+    // LIDAR data - optimalizovaná verze
+    socket.on('scan_data', function(data) {
+        wsMessageCount++;
+        getElement('min-distance').textContent = data.min_distance.toFixed(2);
+        getElement('max-distance').textContent = data.max_distance.toFixed(2);
+        
+        // Použij throttling pro aktualizaci LIDAR vizualizace
+        updateLidarVisualizationThrottled(data.scan);
+    });
+
+    // Data mapy
+    socket.on('map_data', function(data) {
+        wsMessageCount++;
+        if (data.error) {
+            console.error('Chyba mapy:', data.error);
+            return;
+        }
+        
+        console.log(`Získána data mapy: ${data.width}x${data.height}`);
+        mapData = data;
+        
+        if (mapCanvas && mapContext) {
+            requestMapRedraw();
+        }
+    });
+    
+    // Odpovědi na příkazy
+    socket.on('control_response', function(data) {
+        wsMessageCount++;
+        console.log('Odpověď na příkaz pohybu:', data);
+    });
+    
+    // Odpovědi na vzory pohybu
+    socket.on('pattern_response', function(data) {
+        wsMessageCount++;
+        console.log('Odpověď na příkaz vzoru:', data);
+        
+        if (data.status === 'success') {
+            if (data.message.includes('spustený')) {
+                patternActive = true;
+                getElement('start-pattern').disabled = true;
+                getElement('stop-pattern').disabled = false;
+                getElement('pause-pattern').disabled = false;
+                getElement('pattern-status').textContent = 'Aktivní';
+                getElement('pattern-status').className = 'badge bg-success';
+            } else if (data.message.includes('zastavený')) {
+                patternActive = false;
+                getElement('start-pattern').disabled = false;
+                getElement('stop-pattern').disabled = true;
+                getElement('pause-pattern').disabled = true;
+                getElement('pattern-status').textContent = 'Zastavený';
+                getElement('pattern-status').className = 'badge bg-secondary';
+            }
+        } else {
+            alert('Chyba: ' + data.message);
+        }
+    });
+    
+    // Odpovědi na operace s mapou
+    socket.on('map_response', function(data) {
+        wsMessageCount++;
+        if (data.status === 'success') {
+            if (data.message.includes('uložená')) {
+                alert('Mapa byla úspěšně uložena: ' + data.filename);
+            } else if (data.message.includes('resetovaná')) {
+                alert('Mapa byla úspěšně resetována.');
+            }
+        } else {
+            alert('Chyba: ' + data.message);
+        }
+    });
+}
+
+// =================== LIDAR VIZUALIZACE ===================
+
+// Pool pro DOM elementy LIDAR bodů
+const lidarPointPool = [];
+
+// Optimalizovaná funkce pro aktualizaci LIDAR vizualizace
+function updateLidarVisualization(scanData) {
+    const container = getElement('lidar-visualization');
+    const tooltip = getElement('lidar-tooltip');
+    
+    // Redukce počtu bodů pro lepší výkon pokud je bodů příliš mnoho
+    if (scanData.length > 100) {
+        const step = Math.floor(scanData.length / 100);
+        scanData = scanData.filter((_, index) => index % step === 0);
+    }
+    
+    // Skryjeme všechny body v poolu
+    for (let i = 0; i < lidarPointPool.length; i++) {
+        lidarPointPool[i].style.display = 'none';
+    }
+    
+    const center = container.offsetWidth / 2;
+    const maxRadius = center - 10;
+    
+    let minDistance = Number.MAX_VALUE;
+    let maxDistance = 0;
+    
+    // Najdeme min/max vzdálenosti
+    scanData.forEach(point => {
+        const distance = point[1];
+        if (distance < minDistance) minDistance = distance;
+        if (distance > maxDistance) maxDistance = distance;
+    });
+    
+    // Vytvoříme nebo použijeme existující body z poolu
+    scanData.forEach((point, index) => {
+        const angle = point[0] * Math.PI / 180;
+        const distance = point[1];
+        const normalizedDistance = Math.min(1, distance / 5000);
+        
+        const x = center + Math.cos(angle) * normalizedDistance * maxRadius;
+        const y = center + Math.sin(angle) * normalizedDistance * maxRadius;
+        
+        let dot;
+        
+        // Použijeme existující bod z poolu nebo vytvoříme nový
+        if (index < lidarPointPool.length) {
+            dot = lidarPointPool[index];
+            dot.style.display = 'block';
+        } else {
+            dot = document.createElement('div');
+            dot.className = 'lidar-point';
+            
+            // Event listenery přidáme pouze jednou
+            dot.addEventListener('mouseover', function(e) {
+                tooltip.innerHTML = `Úhel: ${this.dataset.angle}°<br>Vzdálenost: ${this.dataset.distance}m`;
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX - container.getBoundingClientRect().left + 10) + 'px';
+                tooltip.style.top = (e.clientY - container.getBoundingClientRect().top - 30) + 'px';
+            });
+            
+            dot.addEventListener('mousemove', function(e) {
+                tooltip.style.left = (e.clientX - container.getBoundingClientRect().left + 10) + 'px';
+                tooltip.style.top = (e.clientY - container.getBoundingClientRect().top - 30) + 'px';
+            });
+            
+            dot.addEventListener('mouseout', function() {
+                tooltip.style.display = 'none';
+            });
+            
+            container.appendChild(dot);
+            lidarPointPool.push(dot);
+        }
+        
+        // Aktualizace pozice a barvy
+        dot.style.left = x + 'px';
+        dot.style.top = y + 'px';
+        
+        const normalizedValue = (distance - minDistance) / (maxDistance - minDistance || 1);
+        const red = Math.round(255 * (1 - normalizedValue));
+        const blue = Math.round(255 * normalizedValue);
+        const green = Math.round(100 * normalizedValue);
+        dot.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
+        
+        dot.dataset.angle = point[0].toFixed(1);
+        dot.dataset.distance = (distance / 1000).toFixed(2);
+    });
+}
+
+// Throttlovaná verze aktualizace LIDAR pro lepší výkon
+const updateLidarVisualizationThrottled = throttle(updateLidarVisualization, 100);
+
+// =================== JOYSTICK OVLÁDÁNÍ ===================
+
+// Proměnné pro joystick
+let lastCommandTime = 0;
+let commandInterval = null;
+let isRobotStopped = true;
+let lastCommandSent = { linear_x: 0, angular_z: 0 };
+let pendingCommand = false;
+let queuedCommand = null;
+
+// Inicializace joysticku
+function initializeJoystick() {
+    const joystickContainer = getElement('joystick');
+    const knob = getElement('knob');
+    
+    const rect = joystickContainer.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const maxDistance = (rect.width / 2) - (knob.offsetWidth / 2);
+
+    // Funkce pro aktualizaci pozice knobů joysticku
+    function updateKnobPosition(clientX, clientY) {
+        const rect = joystickContainer.getBoundingClientRect();
+        let dx = clientX - rect.left - centerX;
+        let dy = clientY - rect.top - centerY;
+    
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > maxDistance) {
+            const angle = Math.atan2(dy, dx);
+            dx = Math.cos(angle) * maxDistance;
+            dy = Math.sin(angle) * maxDistance;
+        }
+
+        knob.style.position = 'absolute';
+        knob.style.top = (centerY + dy) + 'px';
+        knob.style.left = (centerX + dx) + 'px';
+        knob.style.transform = 'translate(-50%, -50%)';
+        
+        linearX = -dy / maxDistance;
+        angularZ = -dx / maxDistance;
+        
+        // Aplikace deadzone
+        if (Math.abs(linearX) < 0.05) linearX = 0;
+        if (Math.abs(angularZ) < 0.05) angularZ = 0;
+        
+        // Zaokrouhlení na 2 desetinná místa
+        linearX = Math.round(linearX * 100) / 100;
+        angularZ = Math.round(angularZ * 100) / 100;
+        
+        getElement('linear-x-value').textContent = linearX.toFixed(2);
+        getElement('angular-z-value').textContent = angularZ.toFixed(2);
+        
+        const linearGauge = getElement('linear-x-gauge');
+        const angularGauge = getElement('angular-z-gauge');
+        
+        linearGauge.style.width = Math.abs(linearX) * 50 + '%';
+        linearGauge.style.left = linearX <= 0 ? '50%' : (50 - Math.abs(linearX) * 50) + '%';
+        
+        angularGauge.style.width = Math.abs(angularZ) * 50 + '%';
+        angularGauge.style.left = angularZ <= 0 ? '50%' : (50 - Math.abs(angularZ) * 50) + '%';
+        
+        queuedCommand = {
+            linear_x: linearX,
+            angular_z: angularZ
+        };
+    }
+    
+    // Funkce pro odeslání příkazu pohybu
+    function sendRobotCommand() {
+        if (!queuedCommand || !isDragging) return;
+        
+        const now = Date.now();
+        const timeSinceLastCommand = now - lastCommandTime;
+        
+        // Omezení frekvence příkazů
+        if (timeSinceLastCommand < 200 && !isRobotStopped) {
+            pendingCommand = true;
+            return;
+        }
+        
+        if (socket && isConnected) {
+            const lin_x = queuedCommand.linear_x;
+            const ang_z = queuedCommand.angular_z;
+            
+            // Posíláme pouze pokud je změna dostatečně velká nebo jde o příkaz zastavení
+            const changed = (
+                Math.abs(lastCommandSent.linear_x - lin_x) > 0.1 || 
+                Math.abs(lastCommandSent.angular_z - ang_z) > 0.1
+            );
+            
+            if (lin_x === 0 && ang_z === 0 || changed) {
+                socket.emit('control_robot', {
+                    linear_x: lin_x,
+                    angular_z: ang_z
+                });
+                
+                lastCommandSent.linear_x = lin_x;
+                lastCommandSent.angular_z = ang_z;
+                lastCommandTime = now;
+                
+                isRobotStopped = (lin_x === 0 && ang_z === 0);
+            }
+            
+            queuedCommand = null;
+            pendingCommand = false;
+        }
+    }
+    
+    // Funkce pro zastavení robota
+    function stopRobot() {
+        if (socket && isConnected && !isRobotStopped) {
+            console.log("Zastavuji robota");
+            
+            // Odešleme příkaz zastavení dvakrát pro jistotu
+            socket.emit('control_robot', {
+                linear_x: 0,
+                angular_z: 0,
+                priority: true
+            });
+            
+            setTimeout(() => {
+                socket.emit('control_robot', {
+                    linear_x: 0,
+                    angular_z: 0,
+                    priority: true
+                });
+            }, 100);
+            
+            lastCommandSent.linear_x = 0;
+            lastCommandSent.angular_z = 0;
+            isRobotStopped = true;
+            queuedCommand = null;
+            pendingCommand = false;
+        }
+    }
+    
+    // Spuštění a zastavení intervalu pro příkazy
+    function startCommandInterval() {
+        if (commandInterval) clearInterval(commandInterval);
+        
+        commandInterval = setInterval(() => {
+            if (isDragging || pendingCommand) {
+                sendRobotCommand();
+            }
+        }, 50);
+    }
+    
+    function stopCommandInterval() {
+        if (commandInterval) {
+            clearInterval(commandInterval);
+            commandInterval = null;
+        }
+    }
+    
+    // Reset joysticku do výchozí pozice
+    function resetJoystick() {
+        isDragging = false;
+        
+        linearX = 0;
+        angularZ = 0;
+        
+        knob.style = '';
+        knob.style.position = 'absolute';
+        knob.style.top = '50%';
+        knob.style.left = '50%';
+        knob.style.transform = 'translate(-50%, -50%)';
+        
+        getElement('linear-x-value').textContent = '0.00';
+        getElement('angular-z-value').textContent = '0.00';
+        
+        getElement('linear-x-gauge').style.width = '0%';
+        getElement('linear-x-gauge').style.left = '50%';
+        getElement('angular-z-gauge').style.width = '0%';
+        getElement('angular-z-gauge').style.left = '50%';
+        
+        stopRobot();
+        
+        setTimeout(() => {
+            stopCommandInterval();
+        }, 200);
+    }
+    
+    // Event listenery pro joystick
+    
+    // Myš
+    joystickContainer.addEventListener('mousedown', function(e) {
+        isDragging = true;
+        updateKnobPosition(e.clientX, e.clientY);
+        startCommandInterval();
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+        if (isDragging) {
+            updateKnobPosition(e.clientX, e.clientY);
+        }
+    });
+    
+    document.addEventListener('mouseup', function() {
+        if (isDragging) {
+            resetJoystick();
+        }
+    });
+    
+    // Dotyk
+    joystickContainer.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        isDragging = true;
+        updateKnobPosition(e.touches[0].clientX, e.touches[0].clientY);
+        startCommandInterval();
+    });
+    
+    document.addEventListener('touchmove', function(e) {
+        if (isDragging) {
+            e.preventDefault();
+            updateKnobPosition(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    });
+    
+    document.addEventListener('touchend', function() {
+        if (isDragging) {
+            resetJoystick();
+        }
+    });
+    
+    // Ztráta fokusu okna
+    window.addEventListener('blur', function() {
+        if (isDragging) {
+            resetJoystick();
+        }
+    });
+    
+    // Odpojení WebSocket
+    if (socket) {
+        socket.on('disconnect', function() {
+            resetJoystick();
+        });
+    }
+}
+
+// =================== VZORY POHYBU ===================
+
+// Globální proměnné pro trajektorie
+let patternInterval = null;
+let patternTimestep = 100;
+let patternAngle = 0;
+let patternStep = 0;
+let patternPhase = 0;
+let patternDirection = 1;
+let isPatternPaused = false;
+let patternStartTime = 0;
+let patternDuration = 30000;
+
+// Inicializace ovládacích prvků pro vzory pohybu
+function initializePatternControls() {
+    console.log("Inicializace ovládacích prvků pro vzory pohybu");
+    
+    document.querySelectorAll('input[name="pattern"]').forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            currentPattern = this.value;
+            getElement('start-pattern').disabled = false;
+            
+            const patternIcon = getElement('pattern-icon');
+            patternIcon.innerHTML = '';
+            
+            if (currentPattern === 'circle') {
+                patternIcon.innerHTML = '<i class="fas fa-circle"></i>';
+            } else if (currentPattern === 'square') {
+                patternIcon.innerHTML = '<i class="fas fa-square"></i>';
+            }
+            
+            getElement('current-pattern').textContent = 
+                currentPattern === 'circle' ? 'Kruh' : 'Štvorec';
+        });
+    });
+    
+    getElement('pattern-speed').addEventListener('input', function() {
+        patternSpeed = parseFloat(this.value);
+        getElement('speed-value').textContent = patternSpeed.toFixed(1);
+        getElement('current-speed').textContent = patternSpeed.toFixed(1);
+    });
+    
+    getElement('pattern-size').addEventListener('input', function() {
+        patternSize = parseFloat(this.value);
+        getElement('size-value').textContent = patternSize.toFixed(1);
+        getElement('current-size').textContent = patternSize.toFixed(1);
+    });
+    
+    // Úprava existujúceho handlera pre štart vzoru
+    document.getElementById('start-pattern').addEventListener('click', function() {
+        if (!currentPattern || patternActive || !socket || !isConnected) return;
+
+        const speed = parseFloat(getElement('pattern-speed').value);
+
+        let data = {
+            pattern: currentPattern,
+            speed: speed
+        };
+
+        // Pridanie parametrov podľa typu vzoru
+        if (currentPattern === 'straight') {
+            data.distance = parseFloat(getElement('pattern-distance').value);
+        } else {
+            data.size = parseFloat(getElement('pattern-size').value);
+        }
+
+        socket.emit('start_pattern', data);
+
+        patternActive = true;
+        this.disabled = true;
+        getElement('stop-pattern').disabled = false;
+        getElement('pause-pattern').disabled = false;
+
+        // Spustiť animáciu vzoru
+        if (currentPattern !== 'straight') {
+            startPatternMovement();
+        } else {
+            // Pre rovnú čiaru sa spustí pohyb na serveri
+            getElement('pattern-status').textContent = "Aktívny";
+            getElement('pattern-status').className = "badge bg-success";
+        }
+    });
+    
+    getElement('stop-pattern').addEventListener('click', function() {
+        if (!patternActive || !socket || !isConnected) return;
+        
+        socket.emit('stop_pattern');
+        stopPatternMovement();
+        
+        patternActive = false;
+        this.disabled = true;
+        getElement('start-pattern').disabled = false;
+        getElement('pause-pattern').disabled = true;
+    });
+    
+    getElement('pause-pattern').addEventListener('click', function() {
+        if (!patternActive) return;
+        
+        isPatternPaused = !isPatternPaused;
+        
+        if (isPatternPaused) {
+            if (socket && isConnected) {
+                socket.emit('control_robot', {
+                    linear_x: 0,
+                    angular_z: 0,
+                    priority: true
+                });
+            }
+            
+            this.innerHTML = '<i class="fas fa-play me-2"></i>Pokračovat v Pohybu';
+            getElement('pattern-status').textContent = 'Pozastavený';
+            getElement('pattern-status').className = 'badge bg-warning';
+        } else {
+            this.innerHTML = '<i class="fas fa-pause me-2"></i>Pozastavit Pohyb';
+            getElement('pattern-status').textContent = 'Aktivní';
+            getElement('pattern-status').className = 'badge bg-success';
+        }
+    });
+    
+    getElement('current-speed').textContent = patternSpeed.toFixed(1);
+    getElement('current-size').textContent = patternSize.toFixed(1);
+}
+
+// Funkce pro spuštění pohybu podle vzoru
+function startPatternMovement() {
+    if (patternInterval) {
+        clearInterval(patternInterval);
+        patternInterval = null;
+    }
+    
+    patternAngle = 0;
+    patternStep = 0;
+    patternPhase = 0;
+    patternDirection = 1;
+    isPatternPaused = false;
+    patternStartTime = Date.now();
+    
+    window.squareState = {
+        phase: 0,
+        corner: 0,
+        startTime: Date.now(),
+        totalRotation: 0.0,
+        targetRotation: 90.0
+    };
+    
+    patternTimestep = 100;
+    
+    if (currentPattern === 'circle') {
+        patternDuration = 15000;
+    } else if (currentPattern === 'square') {
+        patternDuration = 60000;
+    }
+    
+    console.log(`Spouštím vzor: ${currentPattern} s rychlostí ${patternSpeed} a velikostí ${patternSize}, max. trvání: ${patternDuration/1000}s`);
+    
+    updatePatternInfo();
+    
+    patternInterval = setInterval(function() {
+        if (Date.now() - patternStartTime > patternDuration) {
+            console.log(`Vzor ukončen - dosažena maximální doba trvání (${patternDuration/1000}s)`);
+            stopPatternMovement();
+            return;
+        }
+        
+        if (!isPatternPaused) {
+            executePatternMovement();
+        }
+    }, patternTimestep);
+}
+
+// Funkce pro zastavení pohybu
+function stopPatternMovement() {
+    if (patternInterval) {
+        clearInterval(patternInterval);
+        patternInterval = null;
+    }
+    
+    if (socket && isConnected) {
+        // Odešleme příkaz zastavení dvakrát pro jistotu
+        socket.emit('control_robot', {
+            linear_x: 0,
+            angular_z: 0,
+            priority: true
+        });
+        
+        setTimeout(() => {
+            if (socket && isConnected) {
+                socket.emit('control_robot', {
+                    linear_x: 0,
+                    angular_z: 0,
+                    priority: true
+                });
+            }
+        }, 100);
+    }
+    
+    patternActive = false;
+    getElement('pattern-status').textContent = 'Zastavený';
+    getElement('pattern-status').className = 'badge bg-secondary';
+    
+    console.log("Pohyb podle vzoru zastaven");
+}
+
+// Hlavní funkce pro vykonávání pohybu podle zvoleného vzoru
+function executePatternMovement() {
+    if (!socket || !isConnected || isPatternPaused) return;
+    
+    switch (currentPattern) {
+        case 'circle':
+            executeCirclePattern(patternSpeed, patternSize, true);
+            break;
+            
+        case 'square':
+            executeSquarePattern(patternSpeed, patternSize);
+            break;
+            
+        default:
+            console.error("Neznámý vzor pohybu:", currentPattern);
+            stopPatternMovement();
+            return;
+    }
+}
+
+// Vykonání kruhového pohybu
+function executeCirclePattern(speed, size, rotation) {
+    const elapsedTime = Date.now() - patternStartTime;
+    
+    const adjustedTotalTime = patternDuration / 2.6;
+    const progress = Math.min(100, (elapsedTime / adjustedTotalTime) * 100);
+    
+    patternAngle = (progress / 100) * (2 * Math.PI);
+    
+    const linearX = speed;
+    const angularZ = speed / (size * 0.5);
+    
+    if (rotation) {
+        sendPatternCommand(linearX, angularZ);
+    } else {
+        sendPatternCommand(linearX, -angularZ);
+    }
+        
+    getElement('current-pattern').textContent = 
+        `Kruh (${Math.round(progress)}%)`;
+    
+    updatePatternAnimation('circle', patternAngle);
+    
+    if (progress >= 100) {
+        console.log("Kruh dokončen na 100%");
+        setTimeout(stopPatternMovement, 500);
+    }
+}
+
+// Vykonání čtvercového pohybu
+function executeSquarePattern(speed, size) {
+    const elapsedTime = Date.now() - patternStartTime;
+    const totalTime = patternDuration;
+    
+    const progress = Math.min(100, (elapsedTime / totalTime) * 100);
+    
+    // Inicializace stavu při prvním volání
+    if (!window.squareState) {
+        window.squareState = {
+            phase: 0,
+            corner: 0,
+            startTime: Date.now(),
+            totalRotation: 0.0,
+            targetRotation: 90.0
+        };
+    }
+    
+    const state = window.squareState;
+    
+    const phaseTime = Date.now() - state.startTime;
+    
+    let linearX = 0;
+    let angularZ = 0;
+    
+    const sideTimeBase = 4000;
+    const sideTimeScaled = sideTimeBase * Math.max(0.5, Math.min(1.5, size));
+    
+    if (state.phase === 0) {
+        // Fáze pohybu vpřed
+        linearX = speed;
+        angularZ = 0;
+        
+        if (phaseTime > sideTimeScaled) {
+            state.phase = 1;
+            state.startTime = Date.now();
+            state.totalRotation = 0;
+            console.log(`Dokončen pohyb vpřed (trvání: ${sideTimeScaled}ms), přechod na otáčení v rohu ${state.corner}`);
+        }
+    } 
+    else if (state.phase === 1) {
+        // Fáze otáčení
+        linearX = 0;
+        
+        const rotationSpeed = 0.76;
+        angularZ = rotationSpeed;
+        
+        const frameTime = patternTimestep / 1000.0;
+        const frameDegrees = frameTime * rotationSpeed * (180 / Math.PI);
+        state.totalRotation += frameDegrees;
+        
+        if (state.totalRotation >= state.targetRotation) {
+            state.phase = 0;
+            state.corner = (state.corner + 1) % 4;
+            state.startTime = Date.now();
+            
+            console.log(`Otáčení dokončeno (${state.totalRotation.toFixed(1)}°), přechod na pohyb vpřed, roh: ${state.corner}`);
+            
+            if (state.corner === 0) {
+                console.log("Čtverec dokončen, zastavuji");
+                stopPatternMovement();
+                return;
+            }
+        }
+    }
+    
+    sendPatternCommand(linearX, angularZ);
+    
+    getElement('current-pattern').textContent = 
+        `Štvorec - ${state.phase === 0 ? 'pohyb vpred' : 'otáčanie'} - roh: ${state.corner} (${Math.round(progress)}%)`;
+    
+    updatePatternAnimation('square', state.corner * 2 + state.phase);
+}
+
+// Globální proměnné pro detekci změny
+let lastCommandLinear = null;
+let lastCommandAngular = null;
+let commandCounter = 0;
+
+// Funkce pro odeslání příkazu na server s redukcí opakovaných příkazů
+function sendPatternCommand(linearX, angularZ) {
+    if (!socket || !isConnected || !patternActive || isPatternPaused) {
+        return;
+    }
+    
+    // Zaokrouhlení hodnot pro snížení šumu
+    const roundedLinear = Math.round(linearX * 100) / 100;
+    const roundedAngular = Math.round(angularZ * 100) / 100;
+    
+    const valueChanged = (lastCommandLinear !== roundedLinear || lastCommandAngular !== roundedAngular);
+    const forceSend = (commandCounter % 5 === 0); // Vynucení odeslání každých 5 cyklů
+    
+    if (valueChanged || forceSend) {
+        lastCommandLinear = roundedLinear;
+        lastCommandAngular = roundedAngular;
+        
+        socket.emit('control_robot', {
+            linear_x: roundedLinear,
+            angular_z: roundedAngular,
+            pattern: true,
+            priority: true
+        });
+        
+        // Omezení logování pro snížení zatížení konzole
+        if (commandCounter % 10 === 0) {
+            console.log(`Odeslán příkaz: lin=${roundedLinear.toFixed(2)}, ang=${roundedAngular.toFixed(2)}`);
+        }
+        
+        // Aktualizace UI
+        getElement('linear-velocity-value').textContent = roundedLinear.toFixed(2) + ' m/s';
+        getElement('angular-velocity-value').textContent = roundedAngular.toFixed(2) + ' rad/s';
+    }
+    
+    commandCounter++;
+}
+
+// Funkce pro aktualizaci vizualizace pohybu v UI
+function updatePatternAnimation(pattern, angle) {
+    const patternIcon = getElement('pattern-icon');
+    
+    if (pattern === 'circle') {
+        patternIcon.innerHTML = `<i class="fas fa-circle" style="transform: rotate(${(angle * 180 / Math.PI)}deg);"></i>`;
+    } 
+    else if (pattern === 'square') {
+        const currentPhase = Math.floor(angle / 2);
+        const isRotation = angle % 2 === 1;
+        
+        if (isRotation) {
+            patternIcon.innerHTML = '<i class="fas fa-sync-alt"></i>';
+        } else {
+            const icons = ['fa-arrow-up', 'fa-arrow-right', 'fa-arrow-down', 'fa-arrow-left'];
+            patternIcon.innerHTML = '<i class="fas ' + icons[currentPhase] + '"></i>';
+        }
+    }
+}
+
+// Funkce pro aktualizaci informací o aktuálním vzoru
+function updatePatternInfo() {
+    let patternName = "Žiadny";
+    switch (currentPattern) {
+        case 'circle': patternName = "Kruh"; break;
+        case 'square': patternName = "Štvorec"; break;
+    }
+    
+    getElement('current-pattern').textContent = patternName;
+    getElement('current-speed').textContent = patternSpeed.toFixed(1);
+    getElement('current-size').textContent = patternSize.toFixed(1);
+    
+    if (patternActive) {
+        getElement('pattern-status').textContent = "Aktivní";
+        getElement('pattern-status').className = "badge bg-success";
+    } else {
+        getElement('pattern-status').textContent = "Neprebieha";
+        getElement('pattern-status').className = "badge bg-secondary";
+    }
+}
+// Handler pre zmenu typu pohybu
+document.querySelectorAll('input[name="pattern"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        currentPattern = this.value;
+        getElement('start-pattern').disabled = false;
+        
+        const patternIcon = getElement('pattern-icon');
+        patternIcon.innerHTML = '';
+        
+        // Zobrazenie/skrytie ovládačov pre rovnú čiaru
+        if (currentPattern === 'straight') {
+            getElement('straight-line-controls').style.display = 'block';
+            getElement('current-distance').style.display = 'inline';
+            patternIcon.innerHTML = '<i class="fas fa-arrows-alt-h"></i>';
+            document.getElementById('pattern-size').parentElement.parentElement.style.display = 'none'; // Skryť veľkosť
+        } else {
+            getElement('straight-line-controls').style.display = 'none';
+            getElement('current-distance').style.display = 'none';
+            document.getElementById('pattern-size').parentElement.parentElement.style.display = 'block'; // Zobraziť veľkosť
+            
+            if (currentPattern === 'circle') {
+                patternIcon.innerHTML = '<i class="fas fa-circle"></i>';
+            } else if (currentPattern === 'square') {
+                patternIcon.innerHTML = '<i class="fas fa-square"></i>';
+            }
+        }
+        
+        getElement('current-pattern').textContent = 
+            currentPattern === 'circle' ? 'Kruh' : 
+            currentPattern === 'square' ? 'Štvorec' : 
+            currentPattern === 'straight' ? 'Rovná čiara' : 'Žiadny';
+    });
+});
+
+// Sledovanie zmeny vzdialenosti
+getElement('pattern-distance').addEventListener('input', function() {
+    const distance = parseFloat(this.value);
+    getElement('distance-value').textContent = distance.toFixed(1);
+    getElement('current-distance').textContent = distance.toFixed(1);
+});
+
+
+    
+// =================== MAPA ===================
+    
+// =================== OPTIMALIZÁCIA MAPY ===================
+
+// Globálne premenné pre optimalizáciu mapy
+let mapRenderingEnabled = false;
+let mapRenderTimer = null;
+let lastMapRenderTime = 0;
+let mapResolution = 1; // 1 = plná kvalita, 2 = polovičné rozlíšenie, atď.
+
+// Vylepšená funkcia pre inicializáciu mapy
+function initializeMap() {
+    mapCanvas = getElement('slam-map');
+    if (!mapCanvas) return;
+    
+    mapContext = mapCanvas.getContext('2d', { alpha: false }); // Optimalizácia pre výkon
+    
+    const container = document.querySelector('.slam-map-container');
+    mapCanvas.width = container.clientWidth;
+    mapCanvas.height = container.clientHeight;
+    
+    console.log(`Inicializácia mapy: ${mapCanvas.width}x${mapCanvas.height}`);
+    
+    // Event handler pre preťahovanie mapy - optimalizovaný
+    mapCanvas.addEventListener('mousedown', function(e) {
+        isDraggingMap = true;
+        lastMapX = e.clientX;
+        lastMapY = e.clientY;
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+        if (isDraggingMap) {
+            const dx = e.clientX - lastMapX;
+            const dy = e.clientY - lastMapY;
+            
+            // Aktualizácia len ak je zmena významná
+            if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+                mapOffsetX += dx;
+                mapOffsetY += dy;
+                
+                lastMapX = e.clientX;
+                lastMapY = e.clientY;
+                
+                requestMapRedraw();
+            }
+        }
+    });
+    
+    document.addEventListener('mouseup', function() {
+        isDraggingMap = false;
+    });
+    
+    // Event handler pre zoom pomocou kolečka myši - optimalizovaný
+    mapCanvas.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        
+        // Spomalenie reakcie na zoom 
+        if (Date.now() - lastMapRenderTime < 50) return;
+        
+        const oldScale = mapScale;
+        
+        if (e.deltaY < 0) {
+            mapScale = Math.min(5, mapScale * 1.1);  // Zväčšenie
+        } else {
+            mapScale = Math.max(0.2, mapScale / 1.1);  // Zmenšenie
+        }
+        
+        const rect = mapCanvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Prispôsobenie offsetu tak, aby bod pod kurzorom zostal rovnaký
+        mapOffsetX = mouseX - (mouseX - mapOffsetX) * (mapScale / oldScale);
+        mapOffsetY = mouseY - (mouseY - mapOffsetY) * (mapScale / oldScale);
+        
+        // Nastavenie rozlíšenia mapy podľa mierky
+        updateMapResolution();
+        
+        requestMapRedraw();
+    });
+    
+    // Tlačidlá pre ovládanie mapy
+    getElement('reset-map').addEventListener('click', function() {
+        if (confirm('Opravdu chcete resetovat mapu? Všechna data budou ztracena.')) {
+            if (socket && isConnected) {
+                socket.emit('reset_map');
+            }
+        }
+    });
+    
+    getElement('save-map').addEventListener('click', function() {
+        if (socket && isConnected) {
+            socket.emit('save_map');
+        }
+    });
+    
+    // Výchozí škálování
+    mapScale = 0.2;
+    
+    // Centrování mapy pri prvom načítaní
+    if (!mapData) {
+        // Fetch map data if none exists
+        if (socket && isConnected) {
+            socket.emit('get_map_data');
+        }
+    } else {
+        centerMap();
+    }
+    
+    // Optimalizácia pre zmenu veľkosti okna
+    window.addEventListener('resize', debounce(() => {
+        if (!mapCanvas || !mapTabActive) return;
+        
+        const container = document.querySelector('.slam-map-container');
+        if (!container) return;
+        
+        mapCanvas.width = container.clientWidth;
+        mapCanvas.height = container.clientHeight;
+        
+        // Upravenie rozlíšenia podľa aktuálnej mierky
+        updateMapResolution();
+        
+        requestMapRedraw();
+    }, 250));
+    
+    // Úvodné centralizovanie mapy
+    setTimeout(centerMap, 1000);
+}
+
+// Funkcia pre aktualizáciu rozlíšenia vykreslenia mapy
+function updateMapResolution() {
+    // Nastavenie rozlíšenia vykreslenia podľa mierky
+    if (mapScale < 0.3) {
+        mapResolution = 2; // Pri malej mierke znížime rozlíšenie
+    } else if (mapScale < 0.8) {
+        mapResolution = 1.5;
+    } else {
+        mapResolution = 1; // Pri veľkej mierke použijeme plné rozlíšenie
+    }
+}
+
+// Funkcia pre centrovanie mapy
+function centerMap() {
+    if (!mapData || !mapCanvas) return;
+    
+    console.log("Centrujem mapu...");
+    const containerWidth = mapCanvas.width;
+    const containerHeight = mapCanvas.height;
+    const mapWidthPixels = mapData.width * mapScale;
+    const mapHeightPixels = mapData.height * mapScale;
+    
+    mapOffsetX = (containerWidth - mapWidthPixels) / 2;
+    mapOffsetY = (containerHeight - mapHeightPixels) / 2;
+    
+    console.log(`Nové offsety: ${mapOffsetX}, ${mapOffsetY}`);
+    requestMapRedraw();
+}
+
+// Optimalizovaná žiadosť o prekreslenie mapy
+function requestMapRedraw() {
+    if (!mapTabActive || mapRenderPending) return;
+    
+    // Obmedzenie frekvencie vykreslenia
+    const now = Date.now();
+    if (now - lastMapRenderTime < 100) {
+        // Ak už prebieha iné vykreslenie, odložme toto
+        clearTimeout(mapRenderTimer);
+        mapRenderTimer = setTimeout(requestMapRedraw, 100);
+        return;
+    }
+    
+    mapRenderPending = true;
+    lastMapRenderTime = now;
+    
+    // Optimalizácia: Použijeme requestAnimationFrame pre vykreslenie v nasledujúcom ráme
+    requestAnimationFrame(() => {
+        if (mapTabActive) {
+            drawMap();
+        }
+        mapRenderPending = false;
+    });
+}
+
+// Optimalizovaná funkcia pre vykreslenie mapy
+function drawMap() {
+    if (!mapContext || !mapData || !mapTabActive) {
+        mapRenderPending = false;
+        return;
+    }
+    
+    const startTime = performance.now();
+    
+    const canvas = mapCanvas;
+    const ctx = mapContext;
+    
+    // Vyčistenie plochy
+    ctx.fillStyle = "#f0f0f0";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Informácie o mape
+    ctx.fillStyle = "#333";
+    ctx.font = "14px Arial";
+    ctx.fillText(`Mapa: ${mapData.width}x${mapData.height}, Mierka: ${mapScale.toFixed(2)}`, 10, 20);
+    
+    // Konštanty pre vykreslenie
+    const mapWidth = mapData.width;
+    const mapHeight = mapData.height;
+    const cellSize = mapScale;
+    
+    // Optimalizácia: výpočet viditeľnej oblasti s rešpektovaním rozlíšenia
+    const scaledCellSize = cellSize * mapResolution;
+    const viewportLeft = Math.max(0, Math.floor(-mapOffsetX / scaledCellSize));
+    const viewportTop = Math.max(0, Math.floor(-mapOffsetY / scaledCellSize));
+    const viewportRight = Math.min(mapWidth, Math.ceil((canvas.width - mapOffsetX) / scaledCellSize));
+    const viewportBottom = Math.min(mapHeight, Math.ceil((canvas.height - mapOffsetY) / scaledCellSize));
+    
+    // Kontrola, či je mapa viditeľná
+    if (viewportRight <= viewportLeft || viewportBottom <= viewportTop) {
+        ctx.fillStyle = "#ff0000";
+        ctx.font = "16px Arial";
+        ctx.fillText("Mapa je mimo obrazovku! Použite myš pre navigáciu.", 10, 50);
+        return;
+    }
+    
+    // Pre lepší výkon použijeme buffery pre jednotlivé typy buniek
+    const occupiedCanvas = document.createElement('canvas');
+    occupiedCanvas.width = canvas.width;
+    occupiedCanvas.height = canvas.height;
+    const occupiedCtx = occupiedCanvas.getContext('2d', { alpha: true });
+    occupiedCtx.fillStyle = '#000000';
+    
+    const freeCanvas = document.createElement('canvas');
+    freeCanvas.width = canvas.width;
+    freeCanvas.height = canvas.height;
+    const freeCtx = freeCanvas.getContext('2d', { alpha: true });
+    freeCtx.fillStyle = '#FFFFFF';
+    
+    const unknownCanvas = document.createElement('canvas');
+    unknownCanvas.width = canvas.width;
+    unknownCanvas.height = canvas.height;
+    const unknownCtx = unknownCanvas.getContext('2d', { alpha: true });
+    unknownCtx.fillStyle = '#CCCCCC';
+    
+    let cellsDrawn = 0;
+    const maxCellsToDraw = 50000;  // Maximálny počet buniek na vykreslenie - zvýšené pre lepšiu kvalitu
+    
+    // Vykreslenie podľa vybraného rozlíšenia
+    const step = mapResolution; // Krok pre prechádzanie dát
+    
+    for (let y = viewportTop; y < viewportBottom; y += step) {
+        for (let x = viewportLeft; x < viewportRight; x += step) {
+            if (cellsDrawn > maxCellsToDraw) break;
+            
+            const mapY = Math.floor(y);
+            const mapX = Math.floor(x);
+            
+            if (mapY < 0 || mapX < 0 || mapY >= mapHeight || mapX >= mapWidth) continue;
+            
+            const index = mapY * mapWidth + mapX;
+            if (index < 0 || index >= mapData.data.length) continue;
+            
+            const value = mapData.data[index];
+            const canvasX = mapOffsetX + mapX * cellSize;
+            const canvasY = mapOffsetY + mapY * cellSize;
+            const cellWidth = cellSize * step; // Šírka bunky podľa rozlíšenia
+            const cellHeight = cellSize * step; // Výška bunky podľa rozlíšenia
+            
+            if (value === 100) { // Obsadené
+                occupiedCtx.fillRect(canvasX, canvasY, cellWidth, cellHeight);
+            } else if (value === 0) { // Voľné
+                freeCtx.fillRect(canvasX, canvasY, cellWidth, cellHeight);
+            } else { // Neznáme
+                unknownCtx.fillRect(canvasX, canvasY, cellWidth, cellHeight);
+            }
+            
+            cellsDrawn++;
+        }
+        if (cellsDrawn > maxCellsToDraw) {
+            console.log(`Limit buniek dosiahnutý: ${cellsDrawn}`);
+            break;
+        }
+    }
+    
+    // Zlúčenie všetkých vrstiev do hlavného canvasu
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(unknownCanvas, 0, 0);
+    ctx.drawImage(freeCanvas, 0, 0);
+    ctx.drawImage(occupiedCanvas, 0, 0);
+    
+    // Vykreslenie mriežky pri veľkom priblížení
+    if (mapScale > 3) {
+        ctx.strokeStyle = "#ddd";
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        
+        const step = 5; // Kreslíme každú 5. čiaru pre lepší výkon
+        
+        for (let x = viewportLeft; x <= viewportRight; x += step) {
+            const canvasX = mapOffsetX + x * cellSize;
+            ctx.moveTo(canvasX, mapOffsetY + viewportTop * cellSize);
+            ctx.lineTo(canvasX, mapOffsetY + viewportBottom * cellSize);
+        }
+        
+        for (let y = viewportTop; y <= viewportBottom; y += step) {
+            const canvasY = mapOffsetY + y * cellSize;
+            ctx.moveTo(mapOffsetX + viewportLeft * cellSize, canvasY);
+            ctx.lineTo(mapOffsetX + viewportRight * cellSize, canvasY);
+        }
+        
+        ctx.stroke();
+    }
+    
+    // Aktualizácia pozície robota
+    updateRobotPosition();
+    
+    const endTime = performance.now();
+    const renderTime = endTime - startTime;
+    
+    // Vypísanie informácií o výkone len každých 10 vykreslení
+    if (Math.random() < 0.1) {
+        console.log(`Vykreslené ${cellsDrawn} buniek za ${renderTime.toFixed(1)}ms, rozlíšenie: ${mapResolution}`);
+    }
+}
+
+// Optimalizovaná aktualizácia pozície robota
+function updateRobotPosition() {
+    if (!mapData || !getElement('robot-position')) return;
+    
+    const robotMarker = getElement('robot-position');
+    
+    // Použitie aktuálnej pozície z odometrie
+    const posX = sensor_data?.odom?.position?.x || 0;
+    const posY = sensor_data?.odom?.position?.y || 0;
+    
+    // Prevod zo súradníc sveta na súradnice mapy
+    const mapX = (posX - mapData.origin_x) / mapData.resolution;
+    const mapY = (posY - mapData.origin_y) / mapData.resolution;
+    
+    // Prevod zo súradníc mapy na súradnice canvasu
+    const canvasX = mapOffsetX + mapX * mapScale;
+    const canvasY = mapOffsetY + mapY * mapScale;
+    
+    // Nastavenie pozície markera
+    robotMarker.style.left = canvasX + 'px';
+    robotMarker.style.top = canvasY + 'px';
+    
+    // Nastavenie veľkosti markera podľa mierky
+    const markerSize = Math.max(10, Math.min(20, mapScale * 10));
+    robotMarker.style.width = markerSize + 'px';
+    robotMarker.style.height = markerSize + 'px';
+}
+// =================== 3D VIZUALIZACE ===================
+
+// Globální proměnné pro 3D model
+let currentRoll = 0, currentPitch = 0, currentYaw = 0;
+
+// Inicializace 3D vizualizace
+function initialize3DModel() {
+    const container = getElement('3d-model');
+    if (!container) return;
+    
+    // Vytvoření scény
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0f0f0);
+    
+    // Nastavení kamery
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    camera.position.set(0, 30, 100);
+    camera.lookAt(0, 0, 0);
+    
+    // Vytvoření rendereru
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(renderer.domElement);
+    
+    // Přidání osvětlení
+    const ambientLight = new THREE.AmbientLight(0x404040, 2);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(1, 1, 1);
+    scene.add(directionalLight);
+    
+    // Přidání mřížky pro lepší orientaci
+    const gridHelper = new THREE.GridHelper(100, 10, 0xaaaaaa, 0xaaaaaa);
+    scene.add(gridHelper);
+    
+    // Vytvoření modelu JetBotu
+    createJetbotModel();
+    
+    // Event listener pro změnu velikosti okna
+    window.addEventListener('resize', debounce(() => {
+        if (!container) return;
+        
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        
+        renderer.setSize(width, height);
+    }, 250));
+    
+    // Spuštění animační smyčky
+    animate();
+}
+
+// Funkce pro vytvoření zjednodušeného 3D modelu JetBotu
+function createJetbotModel() {
+  jetbotModel = new THREE.Group();
+  jetbotModel.rotation.x = Math.PI;
+  jetbotModel.scale.set(0.3, 0.3, 0.3);
+    
+  const greenMaterial = new THREE.MeshStandardMaterial({ color: 0x3e8f3e });
+  const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+  const darkGreenMaterial = new THREE.MeshStandardMaterial({ color: 0x0d300d });
+  const metalMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.8, roughness: 0.2 });
+  const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+  const wheelRimMaterial = new THREE.MeshStandardMaterial({ color: 0x0088ff, metalness: 0.5 });
+  
+  const basePlatform = new THREE.Mesh(
+    new THREE.BoxGeometry(100, 5, 70),
+    darkGreenMaterial
+  );
+  basePlatform.position.y = -10;
+  jetbotModel.add(basePlatform);
+  
+  const bottomPlatform = new THREE.Mesh(
+    new THREE.BoxGeometry(80, 4, 20),
+    greenMaterial
+  );
+  bottomPlatform.position.y = 30;
+  jetbotModel.add(bottomPlatform);
+  
+  const frontWheel = new THREE.Mesh(
+    new THREE.SphereGeometry(7, 16, 16),
+    metalMaterial
+  );
+  frontWheel.position.set(0, 55, 0);
+  jetbotModel.add(frontWheel);
+  
+  const leftWheelRim = new THREE.Mesh(
+    new THREE.CylinderGeometry(22, 22, 8, 32),
+    wheelMaterial
+  );
+  leftWheelRim.rotation.x = Math.PI / 2;
+  leftWheelRim.position.set(-40, 40, 0);
+  jetbotModel.add(leftWheelRim);
+  
+  const leftWheelInner = new THREE.Mesh(
+    new THREE.CylinderGeometry(15, 15, 10, 32),
+    wheelRimMaterial
+  );
+  leftWheelInner.rotation.x = Math.PI / 2;
+  leftWheelInner.position.set(-40, 40, 0);
+  jetbotModel.add(leftWheelInner);
+  
+  const rightWheelRim = new THREE.Mesh(
+    new THREE.CylinderGeometry(22, 22, 8, 32),
+    wheelMaterial
+  );
+  rightWheelRim.rotation.x = Math.PI / 2;
+  rightWheelRim.position.set(40, 40, 0);
+  jetbotModel.add(rightWheelRim);
+  
+  const rightWheelInner = new THREE.Mesh(
+    new THREE.CylinderGeometry(15, 15, 10, 32),
+    wheelRimMaterial
+  );
+  rightWheelInner.rotation.x = Math.PI / 2;
+  rightWheelInner.position.set(40, 40, 0);
+  jetbotModel.add(rightWheelInner);
+  
+  const jetson = new THREE.Mesh(
+    new THREE.BoxGeometry(60, 15, 40),
+    blackMaterial
+  );
+  jetson.position.set(0, 0, 0);
+  jetbotModel.add(jetson);
+  
+  const cooler = new THREE.Mesh(
+    new THREE.BoxGeometry(40, 5, 30),
+    metalMaterial
+  );
+  cooler.position.set(0, 10, 0);
+  jetbotModel.add(cooler);
+  
+  const lidar = new THREE.Mesh(
+    new THREE.CylinderGeometry(25, 25, 10, 32),
+    blackMaterial
+  );
+  lidar.position.set(0, -25, 0);
+  jetbotModel.add(lidar);
+  
+  const cameraMount = new THREE.Mesh(
+    new THREE.BoxGeometry(5, 30, 20),
+    greenMaterial
+  );
+  cameraMount.position.set(45, 0, 0);
+  jetbotModel.add(cameraMount);
+  
+  const cameraBody = new THREE.Mesh(
+    new THREE.BoxGeometry(10, 15, 20),
+    blackMaterial
+  );
+  cameraBody.position.set(52, 0, 0);
+  jetbotModel.add(cameraBody);
+  
+  const cameraLens = new THREE.Mesh(
+    new THREE.CylinderGeometry(5, 5, 5, 32),
+    blackMaterial
+  );
+  cameraLens.rotation.z = Math.PI / 2;
+  cameraLens.position.set(60, 0, 0);
+  jetbotModel.add(cameraLens);
+  
+  const antenna = new THREE.Mesh(
+    new THREE.CylinderGeometry(1, 1, 50, 16),
+    blackMaterial
+  );
+  antenna.position.set(-45, -45, 0);
+  jetbotModel.add(antenna);
+  
+  const antennaTop = new THREE.Mesh(
+    new THREE.SphereGeometry(3, 16, 16),
+    blackMaterial
+  );
+  antennaTop.position.set(-45, -70, 0);
+  jetbotModel.add(antennaTop);
+  
+  scene.add(jetbotModel);
+  
+  const arrowGeometry = new THREE.ConeGeometry(5, 15, 32);
+  const arrowMaterial = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
+  const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+  arrow.rotation.z = -Math.PI / 2;
+  arrow.position.set(70, 0, 0);
+  jetbotModel.add(arrow);
+}
+
+// Funkce pro aktualizaci 3D modelu
+function update3DModel(roll, pitch, yaw) {
+  if (!jetbotModel) return;
+  
+  document.getElementById('roll-value').textContent = roll.toFixed(1) + '°';
+  document.getElementById('pitch-value').textContent = pitch.toFixed(1) + '°';
+  document.getElementById('yaw-value').textContent = yaw.toFixed(1) + '°';
+  
+  const rollRad = roll * Math.PI / 180;
+  const pitchRad = pitch * Math.PI / 180;
+  const yawRad = yaw * Math.PI / 180;
+  
+  jetbotModel.rotation.set(Math.PI, 0, 0);
+  
+  jetbotModel.rotateY(-yawRad);
+  jetbotModel.rotateX(pitchRad);
+  jetbotModel.rotateZ(rollRad);
+}
+
+// Lineární interpolace pro plynulé přechody
+function lerp(a, b, t) {
+    return a + (b - a) * t;
+}
+
+// Throttlovaná verze aktualizace 3D modelu
+const update3DModelThrottled = throttle(update3DModel, 50);
+
+// Animační smyčka
+function animate() {
+    // Ukončení animace při zavření stránky nebo když záložka není aktivní
+    if (!renderer || !scene || !camera || !sensorsTabActive) {
+        animationFrameId = null;
+        return;
+    }
+    
+    // Inkrementace počítadla snímků
+    frameCount++;
+    
+    // Vykreslení scény
+    renderer.render(scene, camera);
+    
+    // Požádání o další snímek
+    animationFrameId = requestAnimationFrame(animate);
+}
+
+// =================== MONITOROVÁNÍ VÝKONU ===================
+
+// Funkce pro aktualizaci monitoru výkonu
+function updatePerformanceMonitor() {
+    const now = performance.now();
+    const elapsed = now - lastPerformanceUpdate;
+    
+    if (elapsed >= 1000) {
+        fps = Math.round(frameCount * 1000 / elapsed);
+        wsRate = Math.round(wsMessageCount * 1000 / elapsed);
+        
+        // Výpočet vytížení CPU (odhadem podle času vykreslování)
+        const renderStartTime = performance.now();
+        if (mapCanvas && mapContext && mapData) {
+            // Testovací vykreslení pro měření výkonu
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 100;
+            tempCanvas.height = 100;
+            const tempContext = tempCanvas.getContext('2d');
+            if (tempContext) {
+                tempContext.fillRect(0, 0, 100, 100);
+            }
+        }
+        const renderEndTime = performance.now();
+        const renderTime = renderEndTime - renderStartTime;
+        
+        // Jednoduchý odhad zatížení CPU
+        cpuUsage = Math.min(100, Math.round(renderTime / elapsed * 1000));
+        
+        // Aktualizace monitoru
+        const perfMonitor = getElement('performance-monitor');
+        if (perfMonitor) {
+            perfMonitor.textContent = `FPS: ${fps} | WS: ${wsRate}/s | CPU: ${cpuUsage}%`;
+            
+            // Barevné zobrazení podle výkonu
+            if (fps < 20 || cpuUsage > 80) {
+                perfMonitor.style.backgroundColor = 'rgba(255,0,0,0.7)';
+            } else if (fps < 40 || cpuUsage > 60) {
+                perfMonitor.style.backgroundColor = 'rgba(255,165,0,0.7)';
+            } else {
+                perfMonitor.style.backgroundColor = 'rgba(0,0,0,0.7)';
+            }
+        }
+        
+        // Reset počítadel
+        frameCount = 0;
+        wsMessageCount = 0;
+        lastPerformanceUpdate = now;
+    }
+    
+    // Opakování funkce
+    requestAnimationFrame(updatePerformanceMonitor);
+}
+
+// =================== SENSOR DATA ===================
+
+// Globální objekt pro data ze senzorů
+const sensor_data = {
+    imu: {
+        accel: { x: 0, y: 0, z: 0 },
+        gyro: { x: 0, y: 0, z: 0 },
+        orientation: { x: 0, y: 0, z: 0, w: 0 },
+        last_update: 0
+    },
+    odom: {
+        position: { x: 0, y: 0, z: 0 },
+        orientation: { x: 0, y: 0, z: 0, w: 0 },
+        linear_velocity: { x: 0, y: 0, z: 0 },
+        angular_velocity: { x: 0, y: 0, z: 0 },
+        last_update: 0
+    },
+    motors: {
+        left_velocity: 0,
+        right_velocity: 0,
+        last_update: 0
+    },
+    scan: {
+        data: [],
+        min_distance: 0,
+        max_distance: 0,
+        point_count: 0,
+        last_update: 0
+    }
+};
+
+// =================== INICIALIZACE DASHBOARDU ===================
+
+// Hlavní inicializační funkce
+function initializeDashboard() {
+    // Zabránění vícenásobné inicializaci
+    if (window.dashboardInitialized) return;
+    window.dashboardInitialized = true;
+    
+    console.log("Inicializuji WebSocket dashboard...");
+    
+    // Přidání posluchače události pro přepínání záložek
+   document.querySelectorAll('.nav-link').forEach(tab => {
+    tab.addEventListener('shown.bs.tab', function(e) {
+        const targetId = e.target.getAttribute('data-bs-target');
+        
+        // Nastavenie stavu aktívnych záložok
+        const wasMapActive = mapTabActive;
+        mapTabActive = (targetId === '#map-panel');
+        sensorsTabActive = (targetId === '#sensors-panel');
+        
+        // Inicializácia a aktivácia mapy pri prepnutí na záložku
+        if (mapTabActive && !wasMapActive) {
+            console.log("Aktivácia karty mapy");
+            
+            // Inicalizácia mapy, ak ešte nebola inicializovaná
+            if (!mapCanvas) {
+                console.log("Inicializácia mapy");
+                initializeMap();
+            }
+            
+            // Žiadosť o dáta mapy zo servera
+            if (socket && isConnected) {
+                console.log("Žiadosť o dáta mapy");
+                socket.emit('get_map_data');
+            }
+            
+            // Prvé vykreslenie s menším oneskorením
+            setTimeout(() => {
+                requestMapRedraw();
+            }, 300);
+        } 
+        else if (!mapTabActive && wasMapActive) {
+            // Zastavenie vykresľovania mapy, keď sa prepneme preč
+            console.log("Deaktivácia karty mapy");
+            mapRenderingEnabled = false;
+            mapRenderPending = false;
+            
+            if (mapRenderTimer) {
+                clearTimeout(mapRenderTimer);
+                mapRenderTimer = null;
+            }
+        }
+        
+        if (sensorsTabActive) {
+            // Aktivace 3D modelu
+            if (!scene) {
+                initialize3DModel();
+            } else {
+                // Obnovení animační smyčky
+                if (!animationFrameId) {
+                    animate();
+                }
+            }
+        } else if (animationFrameId) {
+            // Zastavení 3D animace, když záložka není aktivní
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+
+        if (velocityChart) {
+            // Aktualizácia grafov pri prepnutí na záložku
+            updateChartsVisibleDuration();
+        }
+    });
+   
+});
+    
+    // Inicializace WebSocketu
+    initWebSocket();
+    
+    // Inicializace joysticku
+    initializeJoystick();
+    
+    // Inicializace ovládacích prvků pro vzory pohybu
+    initializePatternControls();
+    
+    // Inicializace UI událostí
+    setupUIEvents();
+    
+    // Spuštění monitorování výkonu
+    updatePerformanceMonitor();
+    
+    initializeChartTab();
+    
+    console.log("Dashboard inicializován");
+}
+
+    const keysPressed = {
+    ArrowUp: false,
+    ArrowDown: false,
+    ArrowLeft: false,
+    ArrowRight: false
+};
+
+// Rychlosti pohybu
+const moveSettings = {
+    linearSpeed: 0.5,     // Dopředná/zpětná rychlost
+    angularSpeed: 0.8,    // Rychlost otáčení (zvýšeno pro rychlejší odezvu)
+    diagonalFactor: 0.7   // Faktor pro diagonální pohyb (aby nebyl příliš rychlý při kombinaci směrů)
+};
+
+// Interval pro odesílání příkazů pohybu
+let keyCommandInterval = null;
+    
+// Nastavení UI událostí
+function setupUIEvents() {
+    // Obnovení kamery
+    const cameraRefresh = getElement('camera-refresh');
+    if (cameraRefresh) {
+        cameraRefresh.addEventListener('click', function() {
+            const cameraFeed = getElement('camera-feed');
+            if (cameraFeed) {
+                const cameraSrc = cameraFeed.src;
+                cameraFeed.src = '';
+                setTimeout(() => {
+                    cameraFeed.src = cameraSrc;
+                }, 100);
+            }
+        });
+    }
+    
+    // Obnovení spojení
+    const refreshConnection = getElement('refresh-connection');
+    if (refreshConnection) {
+        refreshConnection.addEventListener('click', function() {
+            if (socket) {
+                socket.emit('get_server_info');
+            }
+        });
+    }
+    
+    // Inicializace klávesového ovládání
+    setupKeyboardControls();
+}
+
+// Funkce pro výpočet a odeslání příkazu pohybu na základě stisknutých kláves
+function sendKeyboardCommand() {
+    if (!socket || !isConnected) return;
+    
+    let linearX = 0;
+    let angularZ = 0;
+    
+    // Dopředný/zpětný pohyb
+    if (keysPressed.ArrowUp) linearX += moveSettings.linearSpeed;
+    if (keysPressed.ArrowDown) linearX -= moveSettings.linearSpeed;
+    
+    // Otáčení - s inverzí při couvání pro intuitivní ovládání
+    if (keysPressed.ArrowLeft) {
+        // Když couvám a stisknu doleva, robot by se měl otáčet doprava z pohledu směru jízdy
+        if (linearX < 0) {
+            angularZ -= moveSettings.angularSpeed;
+        } else {
+            angularZ += moveSettings.angularSpeed;
+        }
+    }
+    
+    if (keysPressed.ArrowRight) {
+        // Když couvám a stisknu doprava, robot by se měl otáčet doleva z pohledu směru jízdy
+        if (linearX < 0) {
+            angularZ += moveSettings.angularSpeed;
+        } else {
+            angularZ -= moveSettings.angularSpeed;
+        }
+    }
+    
+    // Pokud se pohybujeme diagonálně, upravíme rychlosti
+    if ((keysPressed.ArrowUp || keysPressed.ArrowDown) && 
+        (keysPressed.ArrowLeft || keysPressed.ArrowRight)) {
+        linearX *= moveSettings.diagonalFactor;
+    }
+    
+    // Odeslání příkazu
+    socket.emit('control_robot', {
+        linear_x: linearX,
+        angular_z: angularZ,
+        priority: true
+    });
+    
+    // Aktualizace UI
+    if (getElement('linear-x-value')) getElement('linear-x-value').textContent = linearX.toFixed(2);
+    if (getElement('angular-z-value')) getElement('angular-z-value').textContent = angularZ.toFixed(2);
+    
+    // Aktualizace ukazatelů rychlosti
+    updateSpeedGauges(linearX, angularZ);
+}
+
+// Funkce pro aktualizaci ukazatelů rychlosti v UI
+function updateSpeedGauges(linearX, angularZ) {
+    const linearGauge = getElement('linear-x-gauge');
+    const angularGauge = getElement('angular-z-gauge');
+    
+    if (linearGauge) {
+        linearGauge.style.width = Math.abs(linearX) * 50 + '%';
+        linearGauge.style.left = linearX <= 0 ? '50%' : (50 - Math.abs(linearX) * 50) + '%';
+    }
+    
+    if (angularGauge) {
+        angularGauge.style.width = Math.abs(angularZ) * 50 + '%';
+        angularGauge.style.left = angularZ <= 0 ? '50%' : (50 - Math.abs(angularZ) * 50) + '%';
+    }
+}
+
+// Spuštění intervalu odesílání příkazů
+function startKeyCommandInterval() {
+    if (keyCommandInterval) return;
+    
+    keyCommandInterval = setInterval(() => {
+        if (Object.values(keysPressed).some(pressed => pressed)) {
+            sendKeyboardCommand();
+        }
+    }, 50); // 50ms pro plynulou odezvu (20 příkazů za sekundu)
+}
+
+// Zastavení intervalu odesílání příkazů
+function stopKeyCommandInterval() {
+    if (keyCommandInterval) {
+        clearInterval(keyCommandInterval);
+        keyCommandInterval = null;
+    }
+    
+    // Odeslání příkazu zastavení
+    if (socket && isConnected) {
+        socket.emit('control_robot', {
+            linear_x: 0,
+            angular_z: 0,
+            priority: true
+        });
+    }
+    
+    // Reset UI
+    updateSpeedGauges(0, 0);
+    if (getElement('linear-x-value')) getElement('linear-x-value').textContent = '0.00';
+    if (getElement('angular-z-value')) getElement('angular-z-value').textContent = '0.00';
+}
+
+    // Funkcia pre aktualizáciu vizuálnych šípok
+function updateArrowVisuals() {
+    getElement('arrow-up').classList.toggle('active', keysPressed.ArrowUp);
+    getElement('arrow-down').classList.toggle('active', keysPressed.ArrowDown);
+    getElement('arrow-left').classList.toggle('active', keysPressed.ArrowLeft);
+    getElement('arrow-right').classList.toggle('active', keysPressed.ArrowRight);
+}
+
+// Funkcia pre zvýraznenie stlačenia medzerníka
+function triggerSpaceAnimation() {
+    const spaceKey = getElement('key-space');
+    spaceKey.classList.add('active');
+    setTimeout(() => {
+        spaceKey.classList.remove('active');
+    }, 300);
+}
+
+// Pridanie event listenerov pre kliky na šípky v UI
+function setupKeyboardArrowClicks() {
+    getElement('arrow-up').addEventListener('click', function() {
+        keysPressed.ArrowUp = !keysPressed.ArrowUp;
+        updateArrowVisuals();
+        
+        if (keysPressed.ArrowUp) {
+            startKeyCommandInterval();
+        } else if (!Object.values(keysPressed).some(pressed => pressed)) {
+            stopKeyCommandInterval();
+        } else {
+            sendKeyboardCommand();
+        }
+    });
+    
+    getElement('arrow-down').addEventListener('click', function() {
+        keysPressed.ArrowDown = !keysPressed.ArrowDown;
+        updateArrowVisuals();
+        
+        if (keysPressed.ArrowDown) {
+            startKeyCommandInterval();
+        } else if (!Object.values(keysPressed).some(pressed => pressed)) {
+            stopKeyCommandInterval();
+        } else {
+            sendKeyboardCommand();
+        }
+    });
+    
+    getElement('arrow-left').addEventListener('click', function() {
+        keysPressed.ArrowLeft = !keysPressed.ArrowLeft;
+        updateArrowVisuals();
+        
+        if (keysPressed.ArrowLeft) {
+            startKeyCommandInterval();
+        } else if (!Object.values(keysPressed).some(pressed => pressed)) {
+            stopKeyCommandInterval();
+        } else {
+            sendKeyboardCommand();
+        }
+    });
+    
+    getElement('arrow-right').addEventListener('click', function() {
+        keysPressed.ArrowRight = !keysPressed.ArrowRight;
+        updateArrowVisuals();
+        
+        if (keysPressed.ArrowRight) {
+            startKeyCommandInterval();
+        } else if (!Object.values(keysPressed).some(pressed => pressed)) {
+            stopKeyCommandInterval();
+        } else {
+            sendKeyboardCommand();
+        }
+    });
+    
+    getElement('key-space').addEventListener('click', function() {
+        Object.keys(keysPressed).forEach(key => keysPressed[key] = false);
+        updateArrowVisuals();
+        stopKeyCommandInterval();
+        
+        // Odeslání příkazu zastavení
+        if (socket && isConnected) {
+            socket.emit('control_robot', {
+                linear_x: 0,
+                angular_z: 0,
+                priority: true
+            });
+        }
+        
+        triggerSpaceAnimation();
+    });
+}
+    
+// Přidání event listenerů pro klávesnici
+function setupKeyboardControls() {
+    // Nastavenie klikateľných šípok v UI
+    setupKeyboardArrowClicks();
+    
+    // Stisknutí klávesy
+    document.addEventListener('keydown', function(e) {
+        // Reagovat pouze na šipky
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            // Zabrání opakovanému spuštění při držení klávesy (nativní chování prohlížeče)
+            if (e.repeat) return;
+            
+            // Ovládání pouze když je aktivní záložka ovládání nebo uživatel drží SHIFT
+            if (!getElement('control-panel').classList.contains('active') && !e.shiftKey) return;
+            
+            // Uložení stavu klávesy
+            keysPressed[e.key] = true;
+            
+            // Aktualizácia vizualizácie
+            updateArrowVisuals();
+            
+            // Spuštění intervalu pro odesílání příkazů
+            startKeyCommandInterval();
+            
+            // Zabránění rolování stránky při používání šipek
+            e.preventDefault();
+        } else if (e.key === ' ') {
+            // Zastavení při stisku mezerníku
+            Object.keys(keysPressed).forEach(key => keysPressed[key] = false);
+            updateArrowVisuals();
+            stopKeyCommandInterval();
+            
+            // Odeslání příkazu zastavení
+            if (socket && isConnected) {
+                socket.emit('control_robot', {
+                    linear_x: 0,
+                    angular_z: 0,
+                    priority: true
+                });
+            }
+            
+            triggerSpaceAnimation();
+            e.preventDefault();
+        }
+    });
+    
+    // Uvolnění klávesy
+    document.addEventListener('keyup', function(e) {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            // Resetování stavu klávesy
+            keysPressed[e.key] = false;
+            
+            // Aktualizácia vizualizácie
+            updateArrowVisuals();
+            
+            // Pokud nejsou stisknuté žádné klávesy, zastavíme interval
+            if (!Object.values(keysPressed).some(pressed => pressed)) {
+                stopKeyCommandInterval();
+            } else {
+                // Jinak pošleme nový příkaz s aktualizovanými rychlostmi
+                sendKeyboardCommand();
+            }
+            
+            e.preventDefault();
+        }
+    });
+    
+    // Ztráta fokusu okna
+    window.addEventListener('blur', function() {
+        // Resetování všech kláves při ztrátě fokusu
+        Object.keys(keysPressed).forEach(key => keysPressed[key] = false);
+        updateArrowVisuals();
+        stopKeyCommandInterval();
+    });
+    
+    // Odpojení WebSocketu
+    if (socket) {
+        socket.on('disconnect', function() {
+            Object.keys(keysPressed).forEach(key => keysPressed[key] = false);
+            updateArrowVisuals();
+            stopKeyCommandInterval();
+        });
+    }
+}
+// =================== GLOBÁLNE PREMENNÉ PRE GRAFY ===================
+
+// Chart.js inštancie
+let velocityChart = null;
+let accelerationChart = null;
+let gyroChart = null;
+let motorsChart = null;
+
+// Pole pre ukladanie zaznamenaných dát
+let recordedData = {
+    timestamps: [],
+    velocity: {
+        linear: [],
+        angular: []
+    },
+    acceleration: {
+        x: [],
+        y: [],
+        z: []
+    },
+    gyro: {
+        x: [],
+        y: [],
+        z: []
+    },
+    motors: {
+        left: [],
+        right: []
+    }
+};
+
+// Nastavenia pre záznam
+let recordingSettings = {
+    isRecording: false,
+    isPaused: false,
+    startTime: null,
+    pauseTime: null,
+    totalPausedTime: 0,
+    lastUpdateTime: null,
+    displayDuration: 60, // Dĺžka zobrazenia v sekundách
+    recordVelocity: true,
+    recordAcceleration: true,
+    recordGyro: true,
+    recordMotors: true
+};
+
+// Referencia na interval aktualizácie času záznamu
+let recordingTimerInterval = null;
+
+// =================== INICIALIZÁCIA GRAFOV ===================
+
+/**
+ * Inicializácia zobrazenia časových priebehov
+ */
+function initializeCharts() {
+    console.log("Inicializácia grafov časových priebehov");
+    
+    // Nastavenie aktívnej záložky
+    document.querySelectorAll('.nav-link').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(e) {
+            const targetId = e.target.getAttribute('data-bs-target');
+            
+            // Aktualizácia stavu záložky grafov
+            chartsTabActive = (targetId === '#charts-panel');
+            
+            if (targetId === '#charts-panel') {
+                // Pri prvom otvorení záložky vytvoríme grafy
+                if (!velocityChart || !accelerationChart || !gyroChart || !motorsChart) {
+                    setupCharts();
+                } else {
+                    // Ak už grafy existujú, len ich refreshneme s aktuálnymi dátami
+                    refreshAllCharts();
+                }
+            }
+        });
+    });
+    
+    // Nastavenie ovládacích prvkov
+    setupChartControls();
+    
+    // Nastavenie indikátora dĺžky zobrazenia
+    getElement('chart-duration').addEventListener('input', function() {
+        const duration = parseInt(this.value);
+        recordingSettings.displayDuration = duration;
+        getElement('duration-value').textContent = duration;
+        
+        // Aktualizácia viditeľnej časti grafov
+        updateChartsVisibleDuration();
+    });
+}
+/**
+ * Refresh všetkých grafov s aktuálnymi dátami
+ */
+function refreshAllCharts() {
+    if (!chartsTabActive) return;
+    
+    console.log("Refreshujem všetky grafy s aktuálnymi dátami");
+    
+    try {
+        // Určenie časového okna pre zobrazenie
+        const maxDuration = recordingSettings.displayDuration * 1000; // v milisekundách
+        const minTime = Date.now() - maxDuration;
+        const maxTime = Date.now();
+        
+        // Refresh grafu rýchlostí
+        if (velocityChart && recordedData.velocity.linear.length > 0) {
+            refreshSingleChart(velocityChart, recordedData.timestamps, [
+                recordedData.velocity.linear,
+                recordedData.velocity.angular
+            ], minTime, maxTime);
+        }
+        
+        // Refresh grafu akcelerácie
+        if (accelerationChart && recordedData.acceleration.x.length > 0) {
+            refreshSingleChart(accelerationChart, recordedData.timestamps, [
+                recordedData.acceleration.x,
+                recordedData.acceleration.y,
+                recordedData.acceleration.z
+            ], minTime, maxTime);
+        }
+        
+        // Refresh grafu gyroskopu
+        if (gyroChart && recordedData.gyro.x.length > 0) {
+            refreshSingleChart(gyroChart, recordedData.timestamps, [
+                recordedData.gyro.x,
+                recordedData.gyro.y,
+                recordedData.gyro.z
+            ], minTime, maxTime);
+        }
+        
+        // Refresh grafu motorov
+        if (motorsChart && recordedData.motors.left.length > 0) {
+            refreshSingleChart(motorsChart, recordedData.timestamps, [
+                recordedData.motors.left,
+                recordedData.motors.right
+            ], minTime, maxTime);
+        }
+        
+    } catch (error) {
+        console.error("Chyba pri refreshovaní grafov:", error);
+    }
+}
+
+/**
+ * Refresh jednotlivého grafu s dátami z určitého časového okna
+ */
+function refreshSingleChart(chart, timestamps, dataSeries, minTime, maxTime) {
+    // Vyčistenie aktuálnych dát
+    chart.data.labels = [];
+    chart.data.datasets.forEach((dataset, index) => {
+        dataset.data = [];
+    });
+    
+    // Pridanie iba dát z požadovaného časového okna
+    for (let i = 0; i < timestamps.length; i++) {
+        const timestamp = timestamps[i];
+        const timestampMs = timestamp.getTime();
+        
+        // Kontrola či je timestamp v požadovanom okne
+        if (timestampMs >= minTime && timestampMs <= maxTime) {
+            chart.data.labels.push(timestamp);
+            
+            // Pridanie hodnôt pre každý dataset
+            dataSeries.forEach((series, datasetIndex) => {
+                if (chart.data.datasets[datasetIndex] && i < series.length) {
+                    chart.data.datasets[datasetIndex].data.push({
+                        x: timestamp,
+                        y: series[i]
+                    });
+                }
+            });
+        }
+    }
+    
+    // Aktualizácia grafu
+    chart.update();
+}
+/**
+ * Vytvorenie všetkých grafov
+ */
+function setupCharts() {
+    console.log("Vytváram grafy...");
+    
+    // Zničenie existujúcich grafov pred vytvorením nových
+    destroyExistingCharts();
+    
+    // Vytvorenie nových grafov
+    createVelocityChart();
+    createAccelerationChart();
+    createGyroChart();
+    createMotorsChart();
+    
+    console.log("Grafy vytvorené");
+}
+
+/**
+ * Zničenie existujúcih grafov
+ */
+function destroyExistingCharts() {
+    if (velocityChart) {
+        velocityChart.destroy();
+        velocityChart = null;
+    }
+    
+    if (accelerationChart) {
+        accelerationChart.destroy();
+        accelerationChart = null;
+    }
+    
+    if (gyroChart) {
+        gyroChart.destroy();
+        gyroChart = null;
+    }
+    
+    if (motorsChart) {
+        motorsChart.destroy();
+        motorsChart = null;
+    }
+}
+
+/**
+ * Vytvorenie grafu rýchlostí
+ */
+function createVelocityChart() {
+    const canvas = getElement('velocity-chart');
+    if (!canvas) {
+        console.error("Nenašiel sa canvas pre velocity-chart");
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    velocityChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Lineárna rýchlosť (m/s)',
+                    data: [],
+                    borderColor: '#4a6ed0',
+                    backgroundColor: 'rgba(74, 110, 208, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Uhlová rýchlosť (rad/s)',
+                    data: [],
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                }
+            ]
+        },
+        options: getChartOptions('Lineárna a uhlová rýchlosť v čase')
+    });
+}
+
+/**
+ * Vytvorenie grafu akcelerácie
+ */
+function createAccelerationChart() {
+    const canvas = getElement('acceleration-chart');
+    if (!canvas) {
+        console.error("Nenašiel sa canvas pre acceleration-chart");
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    accelerationChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Akcelerácia X (m/s²)',
+                    data: [],
+                    borderColor: '#2ecc71',
+                    backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Akcelerácia Y (m/s²)',
+                    data: [],
+                    borderColor: '#e67e22',
+                    backgroundColor: 'rgba(230, 126, 34, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Akcelerácia Z (m/s²)',
+                    data: [],
+                    borderColor: '#9b59b6',
+                    backgroundColor: 'rgba(155, 89, 182, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                }
+            ]
+        },
+        options: getChartOptions('Akcelerácia v čase')
+    });
+}
+
+/**
+ * Vytvorenie grafu gyroskopu
+ */
+function createGyroChart() {
+    const canvas = getElement('gyro-chart');
+    if (!canvas) {
+        console.error("Nenašiel sa canvas pre gyro-chart");
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    gyroChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Gyroskop X (rad/s)',
+                    data: [],
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Gyroskop Y (rad/s)',
+                    data: [],
+                    borderColor: '#f1c40f',
+                    backgroundColor: 'rgba(241, 196, 15, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Gyroskop Z (rad/s)',
+                    data: [],
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                }
+            ]
+        },
+        options: getChartOptions('Gyroskop v čase')
+    });
+}
+
+/**
+ * Vytvorenie grafu motorov
+ */
+function createMotorsChart() {
+    const canvas = getElement('motors-chart');
+    if (!canvas) {
+        console.error("Nenašiel sa canvas pre motors-chart");
+        return;
+    }
+    
+    const ctx = canvas.getContext('2d');
+    
+    motorsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Ľavý motor',
+                    data: [],
+                    borderColor: '#2ecc71',
+                    backgroundColor: 'rgba(46, 204, 113, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                },
+                {
+                    label: 'Pravý motor',
+                    data: [],
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    fill: false
+                }
+            ]
+        },
+        options: getChartOptions('Rýchlosti motorov v čase')
+    });
+}
+    
+/**
+ * Základné nastavenia pre grafy
+ */
+function getChartOptions(title) {
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+            duration: 0 // Rýchlejšie vykresľovanie pri častej aktualizácii
+        },
+        interaction: {
+            intersect: false,
+            mode: 'index'
+        },
+        plugins: {
+            title: {
+                display: true,
+                text: title,
+                font: {
+                    size: 16
+                }
+            },
+            legend: {
+                position: 'top',
+                labels: {
+                    usePointStyle: true,
+                    boxWidth: 6
+                }
+            },
+            tooltip: {
+                enabled: true
+            }
+        },
+        scales: {
+            x: {
+                type: 'time',
+                time: {
+                    unit: 'second',
+                    displayFormats: {
+                        second: 'HH:mm:ss'
+                    },
+                    tooltipFormat: 'HH:mm:ss'
+                },
+                title: {
+                    display: true,
+                    text: 'Čas'
+                },
+                ticks: {
+                    maxRotation: 0
+                }
+            },
+            y: {
+                beginAtZero: false,
+                title: {
+                    display: true,
+                    text: 'Hodnota'
+                }
+            }
+        }
+    };
+}
+
+// =================== OVLÁDANIE ZÁZNAMU ===================
+
+/**
+ * Nastavenie ovládacích prvkov pre záznam dát
+ */
+function setupChartControls() {
+    // Spustenie záznamu
+    getElement('start-recording').addEventListener('click', function() {
+        if (!recordingSettings.isRecording) {
+            startRecording();
+        } else if (recordingSettings.isPaused) {
+            resumeRecording();
+        }
+    });
+    
+    // Pozastavenie záznamu
+    getElement('pause-recording').addEventListener('click', function() {
+        if (recordingSettings.isRecording && !recordingSettings.isPaused) {
+            pauseRecording();
+        }
+    });
+    
+    // Zastavenie záznamu
+    getElement('stop-recording').addEventListener('click', function() {
+        if (recordingSettings.isRecording) {
+            stopRecording();
+        }
+    });
+    
+    // Vyčistenie grafov
+    getElement('clear-data').addEventListener('click', function() {
+        clearChartData();
+    });
+    
+    // Export dát
+    getElement('export-data').addEventListener('click', function() {
+        exportDataToCSV();
+    });
+    
+    // Checkboxy pre výber typov dát
+    getElement('record-velocity').addEventListener('change', function() {
+        recordingSettings.recordVelocity = this.checked;
+    });
+    
+    getElement('record-acceleration').addEventListener('change', function() {
+        recordingSettings.recordAcceleration = this.checked;
+    });
+    
+    getElement('record-gyro').addEventListener('change', function() {
+        recordingSettings.recordGyro = this.checked;
+    });
+    
+    getElement('record-motors').addEventListener('change', function() {
+        recordingSettings.recordMotors = this.checked;
+    });
+}
+
+/**
+ * Spustenie záznamu dát
+ */
+function startRecording() {
+    if (recordingSettings.isRecording) return;
+    
+    console.log("Spúšťam záznam dát");
+    
+    // Ak je to nový záznam (nie obnovenie po pauze), vyčistíme dáta
+    if (!recordingSettings.isPaused) {
+        clearChartData();
+    }
+    
+    recordingSettings.isRecording = true;
+    recordingSettings.isPaused = false;
+    
+    if (!recordingSettings.startTime) {
+        recordingSettings.startTime = Date.now();
+        recordingSettings.totalPausedTime = 0;
+    } else if (recordingSettings.pauseTime) {
+        // Pripočítame dobu pozastavenia
+        recordingSettings.totalPausedTime += (Date.now() - recordingSettings.pauseTime);
+        recordingSettings.pauseTime = null;
+    }
+    
+    // Nastavenie indikátora stavu záznamu
+    updateRecordingStatus('active');
+    
+    // Spustenie časovača
+    if (!recordingTimerInterval) {
+        recordingTimerInterval = setInterval(updateRecordingTimer, 1000);
+    }
+    
+    // Aktualizácia tlačidiel
+    getElement('start-recording').disabled = true;
+    getElement('pause-recording').disabled = false;
+    getElement('stop-recording').disabled = false;
+}
+
+/**
+ * Pozastavenie záznamu dát
+ */
+function pauseRecording() {
+    if (!recordingSettings.isRecording || recordingSettings.isPaused) return;
+    
+    console.log("Pozastavujem záznam dát");
+    
+    recordingSettings.isPaused = true;
+    recordingSettings.pauseTime = Date.now();
+    
+    // Nastavenie indikátora stavu záznamu
+    updateRecordingStatus('paused');
+    
+    // Aktualizácia tlačidiel
+    getElement('start-recording').disabled = false;
+    getElement('start-recording').innerHTML = '<i class="fas fa-play me-2"></i>Pokračovať';
+    getElement('pause-recording').disabled = true;
+}
+
+/**
+ * Pokračovanie v zázname po pozastavení
+ */
+function resumeRecording() {
+    if (!recordingSettings.isPaused) return;
+    
+    console.log("Pokračujem v zázname dát");
+    
+    // Výpočet doby pozastavenia
+    if (recordingSettings.pauseTime) {
+        recordingSettings.totalPausedTime += (Date.now() - recordingSettings.pauseTime);
+        recordingSettings.pauseTime = null;
+    }
+    
+    recordingSettings.isPaused = false;
+    
+    // Nastavenie indikátora stavu záznamu
+    updateRecordingStatus('active');
+    
+    // Aktualizácia tlačidiel
+    getElement('start-recording').disabled = true;
+    getElement('start-recording').innerHTML = '<i class="fas fa-play me-2"></i>Spustiť záznam';
+    getElement('pause-recording').disabled = false;
+}
+
+/**
+ * Zastavenie záznamu dát
+ */
+function stopRecording() {
+    if (!recordingSettings.isRecording) return;
+    
+    console.log("Zastavujem záznam dát");
+    
+    recordingSettings.isRecording = false;
+    recordingSettings.isPaused = false;
+    recordingSettings.startTime = null;
+    recordingSettings.pauseTime = null;
+    
+    // Zastavíme časovač
+    if (recordingTimerInterval) {
+        clearInterval(recordingTimerInterval);
+        recordingTimerInterval = null;
+    }
+    
+    // Nastavenie indikátora stavu záznamu
+    updateRecordingStatus('inactive');
+    
+    // Aktualizácia tlačidiel
+    getElement('start-recording').disabled = false;
+    getElement('start-recording').innerHTML = '<i class="fas fa-play me-2"></i>Spustiť záznam';
+    getElement('pause-recording').disabled = true;
+    getElement('stop-recording').disabled = true;
+}
+
+/**
+ * Aktualizácia indikátora stavu záznamu
+ */
+function updateRecordingStatus(status) {
+    const statusElement = getElement('recording-status');
+    
+    switch (status) {
+        case 'active':
+            statusElement.textContent = 'Záznam aktívny';
+            statusElement.className = 'badge bg-danger me-2';
+            break;
+        case 'paused':
+            statusElement.textContent = 'Záznam pozastavený';
+            statusElement.className = 'badge bg-warning me-2';
+            break;
+        case 'inactive':
+        default:
+            statusElement.textContent = 'Neaktívny';
+            statusElement.className = 'badge bg-secondary me-2';
+            break;
+    }
+}
+
+/**
+ * Aktualizácia časovača záznamu
+ */
+function updateRecordingTimer() {
+    if (!recordingSettings.isRecording || !recordingSettings.startTime) return;
+    
+    let elapsedTime;
+    
+    if (recordingSettings.isPaused && recordingSettings.pauseTime) {
+        // Ak je záznam pozastavený, zobrazujeme čas v momente pozastavenia
+        elapsedTime = recordingSettings.pauseTime - recordingSettings.startTime - recordingSettings.totalPausedTime;
+    } else {
+        // Inak aktuálny čas záznamu
+        elapsedTime = Date.now() - recordingSettings.startTime - recordingSettings.totalPausedTime;
+    }
+    
+    // Formátovanie času vo formáte HH:MM:SS
+    const hours = Math.floor(elapsedTime / 3600000);
+    const minutes = Math.floor((elapsedTime % 3600000) / 60000);
+    const seconds = Math.floor((elapsedTime % 60000) / 1000);
+    
+    const timeString = 
+        (hours < 10 ? '0' + hours : hours) + ':' +
+        (minutes < 10 ? '0' + minutes : minutes) + ':' +
+        (seconds < 10 ? '0' + seconds : seconds);
+    
+    getElement('recording-time').textContent = timeString;
+}
+
+/**
+ * Vyčistenie všetkých grafov a zaznamenaných dát
+ */
+function clearChartData() {
+    if (recordingSettings.isRecording && !recordingSettings.isPaused) {
+        if (!confirm('Naozaj chcete vyčistiť všetky dáta? Aktuálny záznam bude stratený.')) {
+            return;
+        }
+    }
+    
+    console.log("Vyčisťujem grafové dáta");
+    
+    // Resetovanie zaznamenaných dát
+    recordedData = {
+        timestamps: [],
+        velocity: {
+            linear: [],
+            angular: []
+        },
+        acceleration: {
+            x: [],
+            y: [],
+            z: []
+        },
+        gyro: {
+            x: [],
+            y: [],
+            z: []
+        },
+        motors: {
+            left: [],
+            right: []
+        }
+    };
+    
+    // Vyčistenie grafov len ak existujú
+    const charts = [velocityChart, accelerationChart, gyroChart, motorsChart];
+    charts.forEach(chart => {
+        if (chart) {
+            chart.data.labels = [];
+            chart.data.datasets.forEach(dataset => {
+                dataset.data = [];
+            });
+            chart.update();
+        }
+    });
+    
+    // Ak je záznam aktívny, zastavíme ho
+    if (recordingSettings.isRecording) {
+        stopRecording();
+    }
+}
+
+// =================== ZAZNAMENÁVANIE DÁT A AKTUALIZÁCIA GRAFOV ===================
+
+/**
+ * Aktualizácia údajov z IMU
+ */
+function updateIMUChartData(data) {
+    if (!data) return;
+    
+    const timestamp = new Date();
+    
+    if (recordingSettings.isRecording && !recordingSettings.isPaused) {
+        // Záznam akcelerácie
+        if (recordingSettings.recordAcceleration) {
+            recordedData.timestamps.push(timestamp);
+            recordedData.acceleration.x.push(data.accel.x);
+            recordedData.acceleration.y.push(data.accel.y);
+            recordedData.acceleration.z.push(data.accel.z);
+        }
+        
+        // Záznam gyroskopu
+        if (recordingSettings.recordGyro) {
+            recordedData.gyro.x.push(data.gyro.x);
+            recordedData.gyro.y.push(data.gyro.y);
+            recordedData.gyro.z.push(data.gyro.z);
+        }
+    }
+    
+    if (accelerationChart && recordingSettings.recordAcceleration && chartsTabActive) {
+        addChartData(
+            accelerationChart,
+            timestamp,
+            [data.accel.x, data.accel.y, data.accel.z]
+        );
+    }
+    
+    if (gyroChart && recordingSettings.recordGyro && chartsTabActive) {
+        addChartData(
+            gyroChart,
+            timestamp,
+            [data.gyro.x, data.gyro.y, data.gyro.z]
+        );
+    }
+}
+
+/**
+ * Aktualizácia údajov o rýchlosti
+ */
+function updateVelocityChartData(data) {
+    if (!data) return;
+    
+    const timestamp = new Date();
+    
+    if (recordingSettings.isRecording && !recordingSettings.isPaused && recordingSettings.recordVelocity) {
+        recordedData.velocity.linear.push(data.linear_velocity.x);
+        recordedData.velocity.angular.push(data.angular_velocity.z);
+    }
+    
+    if (velocityChart && recordingSettings.recordVelocity && chartsTabActive) {
+        addChartData(
+            velocityChart,
+            timestamp,
+            [data.linear_velocity.x, data.angular_velocity.z]
+        );
+    }
+}
+
+/**
+ * Aktualizácia údajov o motoroch
+ */
+function updateMotorsChartData(data) {
+    if (!data) return;
+    
+    const timestamp = new Date();
+    
+    // Ak prebieha záznam, uložíme dáta - BEZ OHĽADU NA AKTÍVNU ZÁLOŽKU
+    if (recordingSettings.isRecording && !recordingSettings.isPaused && recordingSettings.recordMotors) {
+        recordedData.motors.left.push(data.left_velocity);
+        recordedData.motors.right.push(data.right_velocity);
+    }
+    
+    // Aktualizácia grafu motorov - IBA KEĎ JE ZÁLOŽKA AKTÍVNA
+    if (motorsChart && recordingSettings.recordMotors && chartsTabActive) {
+        addChartData(
+            motorsChart,
+            timestamp,
+            [data.left_velocity, data.right_velocity]
+        );
+    }
+}
+
+/**
+ * Pridanie dát do grafu s obmedzením počtu bodov
+ */
+function addChartData(chart, timestamp, values) {
+    // Pridanie dát len ak je záložka aktívna
+    if (!chartsTabActive) return;
+    
+    // Pridanie časovej značky do labels (ak neexistuje)
+    if (!chart.data.labels.includes(timestamp)) {
+        chart.data.labels.push(timestamp);
+    }
+    
+    // Pridanie hodnôt pre každú sériu
+    values.forEach((value, index) => {
+        if (chart.data.datasets[index]) {
+            chart.data.datasets[index].data.push({
+                x: timestamp,
+                y: value
+            });
+        }
+    });
+    
+    // Obmedzenie počtu zobrazených bodov podľa nastavenia dĺžky zobrazenia
+    const maxDuration = recordingSettings.displayDuration * 1000; // v milisekundách
+    const minTime = Date.now() - maxDuration;
+    
+    // Odstránenie starých bodov mimo zobrazovaného časového okna
+    for (let i = 0; i < chart.data.labels.length; i++) {
+        const labelTime = chart.data.labels[i].getTime();
+        if (labelTime < minTime) {
+            chart.data.labels.splice(i, 1);
+            chart.data.datasets.forEach(dataset => {
+                dataset.data.splice(i, 1);
+            });
+            i--; // Kompenzácia za odstránený prvok
+        } else {
+            break; // Dáta sú zoradené podľa času, takže ak už sme v zobrazovanom okne, môžeme skončiť
+        }
+    }
+    
+    // Aktualizácia grafu - použijeme throttling pre lepší výkon
+    updateChartThrottled(chart);
+}
+
+/**
+ * Throttlovaná funkcia pre aktualizáciu grafu
+ */
+const updateChartThrottled = throttle(function(chart) {
+    chart.update();
+}, 100); // Aktualizácia maximálne 10-krát za sekundu pre lepší výkon
+
+/**
+ * Aktualizácia viditeľnej dĺžky všetkých grafov
+ */
+function updateChartsVisibleDuration() {
+    const maxDuration = recordingSettings.displayDuration;
+    
+    const charts = [velocityChart, accelerationChart, gyroChart, motorsChart];
+    charts.forEach(chart => {
+        if (chart) {
+            chart.options.scales.x.time.unit = maxDuration <= 60 ? 'second' : 'minute';
+            chart.options.scales.x.min = new Date(Date.now() - maxDuration * 1000);
+            chart.options.scales.x.max = new Date();
+            chart.update();
+        }
+    });
+}
+
+// =================== EXPORT DÁT ===================
+
+/**
+ * Export zaznamenaných dát do CSV súboru
+ */
+function exportDataToCSV() {
+    if (recordedData.timestamps.length === 0) {
+        alert('Žiadne dáta na export. Najprv nahrajte nejaké dáta.');
+        return;
+    }
+    
+    console.log("Exportujem dáta do CSV...");
+    
+    // Vytvorenie hlavičky CSV
+    let csvContent = 'Timestamp,';
+    
+    // Pridanie stĺpcov podľa zaznamenaných dát
+    if (recordingSettings.recordVelocity) {
+        csvContent += 'Linear_Velocity,Angular_Velocity,';
+    }
+    
+    if (recordingSettings.recordAcceleration) {
+        csvContent += 'Accel_X,Accel_Y,Accel_Z,';
+    }
+    
+    if (recordingSettings.recordGyro) {
+        csvContent += 'Gyro_X,Gyro_Y,Gyro_Z,';
+    }
+    
+    if (recordingSettings.recordMotors) {
+        csvContent += 'Left_Motor,Right_Motor,';
+    }
+    
+    // Odstránenie poslednej čiarky a pridanie nového riadku
+    csvContent = csvContent.slice(0, -1) + '\n';
+    
+    // Pridanie dát
+    for (let i = 0; i < recordedData.timestamps.length; i++) {
+        // Formátovanie času
+        const timestamp = recordedData.timestamps[i];
+        csvContent += timestamp.toISOString() + ',';
+        
+        // Lineárna a uhlová rýchlosť
+        if (recordingSettings.recordVelocity) {
+            const linearVel = i < recordedData.velocity.linear.length ? recordedData.velocity.linear[i] : '';
+            const angularVel = i < recordedData.velocity.angular.length ? recordedData.velocity.angular[i] : '';
+            csvContent += linearVel + ',' + angularVel + ',';
+        }
+        
+        // Akcelerácia
+        if (recordingSettings.recordAcceleration) {
+            const accelX = i < recordedData.acceleration.x.length ? recordedData.acceleration.x[i] : '';
+            const accelY = i < recordedData.acceleration.y.length ? recordedData.acceleration.y[i] : '';
+            const accelZ = i < recordedData.acceleration.z.length ? recordedData.acceleration.z[i] : '';
+            csvContent += accelX + ',' + accelY + ',' + accelZ + ',';
+        }
+        
+        // Gyroskop
+        if (recordingSettings.recordGyro) {
+            const gyroX = i < recordedData.gyro.x.length ? recordedData.gyro.x[i] : '';
+            const gyroY = i < recordedData.gyro.y.length ? recordedData.gyro.y[i] : '';
+            const gyroZ = i < recordedData.gyro.z.length ? recordedData.gyro.z[i] : '';
+            csvContent += gyroX + ',' + gyroY + ',' + gyroZ + ',';
+        }
+        
+        // Motory
+        if (recordingSettings.recordMotors) {
+            const leftMotor = i < recordedData.motors.left.length ? recordedData.motors.left[i] : '';
+            const rightMotor = i < recordedData.motors.right.length ? recordedData.motors.right[i] : '';
+            csvContent += leftMotor + ',' + rightMotor + ',';
+        }
+        
+        // Odstránenie poslednej čiarky a pridanie nového riadku
+        csvContent = csvContent.slice(0, -1) + '\n';
+    }
+    
+    // Vytvorenie Blob objektu
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Vytvorenie aktuálnej časovej značky pre názov súboru
+    const now = new Date();
+    const fileName = 'jetbot_data_' + 
+        now.getFullYear() + 
+        ('0' + (now.getMonth() + 1)).slice(-2) + 
+        ('0' + now.getDate()).slice(-2) + '_' +
+        ('0' + now.getHours()).slice(-2) + 
+        ('0' + now.getMinutes()).slice(-2) + 
+        '.csv';
+    
+    // Vytvorenie dočasného odkazu na stiahnutie
+    const link = document.createElement('a');
+    
+    // Podpora pre staršie prehliadače
+    if (navigator.msSaveBlob) {
+        navigator.msSaveBlob(blob, fileName);
+    } else {
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Uvoľnenie objektového URL
+        setTimeout(function() {
+            URL.revokeObjectURL(url);
+        }, 100);
+    }
+    
+    console.log(`Dáta exportované do súboru ${fileName}`);
+}
+
+// =================== PREPOJENIE SO SOCKETMI ===================
+
+/**
+ * Pridanie event listenerov pre WebSocket správy
+ */
+function setupChartSocketListeners() {
+    if (!socket) return;
+    
+    // Pridanie nových listenerov pre dáta
+    socket.on('imu_data', function(data) {
+        updateIMUChartData(data);
+    });
+    
+    socket.on('odom_data', function(data) {
+        updateVelocityChartData(data);
+    });
+    
+    socket.on('motors_data', function(data) {
+        updateMotorsChartData(data);
+    });
+}
+
+// =================== INICIALIZÁCIA ===================
+
+/**
+ * Hlavná inicializačná funkcia pre časové priebehy
+ */
+function initializeChartTab() {
+    // Kontrola, či už bola inicializácia vykonaná
+    if (window.chartTabInitialized) return;
+    window.chartTabInitialized = true;
+    
+    console.log("Inicializácia záložky s časovými priebehmi...");
+    
+    // Inicializácia grafov
+    initializeCharts();
+    
+    // Nastavenie WebSocket listenerov
+    setupChartSocketListeners();
+    
+    console.log("Záložka s časovými priebehmi inicializovaná");
+}
+
+// Volanie inicializačnej funkcie po načítaní stránky
+document.addEventListener('DOMContentLoaded', function() {
+    // Pridáme inicializáciu záložky s grafmi do hlavnej inicializácie
+    const originalInitDashboard = window.initializeDashboard || function() {};
+    
+    window.initializeDashboard = function() {
+        originalInitDashboard();
+        initializeChartTab();
+    };
+    
+    // Ak už bol dashboard inicializovaný, zavoláme inicializáciu grafov samostatne
+    if (window.dashboardInitialized) {
+        initializeChartTab();
+    }
+});
+// =================== SPUŠTĚNÍ APLIKACE ===================
+
+// Přidání event listeneru pro načtení DOMu
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializace dashboardu
+    initializeDashboard();
+});
+
+getElement('auto-update-map').addEventListener('change', function() {
+mapRenderingEnabled = this.checked;
+if (mapRenderingEnabled && mapTabActive) {
+    // Ak sme práve zapli aktualizácie, požiadajme o nové dáta
+    if (socket && isConnected) {
+        socket.emit('get_map_data');
+    }
+}
+});
+window.addEventListener('beforeunload', function() {
+    destroyExistingCharts();
+});
+</script>
+</body>
+</html>
